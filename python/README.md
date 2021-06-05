@@ -25,6 +25,7 @@ Usage:
 
 ```
 ./pc_filter.py input_point_cloud output_point_cloud param.json
+```
 
 ### pc2ndsm.py
 
@@ -44,7 +45,9 @@ Usage:
 Find building footprints in a point cloud.
 This is under development partial results are available only
 
+Usage:
+
 ```
-Usage: ./building.py point_cloud json_config
+./building.py point_cloud json_config
 ```
 

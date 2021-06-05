@@ -1,2 +1,2 @@
 # pc_utils
-Python utilities to handle point clouds
+Python and other CLI utilities to handle point clouds

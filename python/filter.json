@@ -1,0 +1,9 @@
+{ "voxel_downsample": "False",
+  "voxel_size": 0.05,
+  "statistical_outliers": "False",
+  "nb_neighbors": 20,
+  "std_ratio": 2.0,
+  "radius_outliers": "True",
+  "nb_points": 16,
+  "radius": 0.25
+}

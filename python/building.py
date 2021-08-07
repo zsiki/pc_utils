@@ -2,15 +2,13 @@
 
 """
     Search for buildings in a point cloud, ground and vegetation should be
-    filtered out
+    filtered out before.
 """
 #   TODO list
 #   colors in o3d are 0-1 range voxel indices are in 0-n range
 #   fast selection for empty/non-empty voxels, creating set from voxel indices?
 #   voxel.add((i, j, k))???
 #   detect corners (two/three/four dominant plane in a voxel)
-#   remove_radius_outlier to filter point cloud, same available in CC
-#   remove_statistical_outlier to filter point cloud, same available in CC
 
 
 import sys
@@ -36,7 +34,7 @@ class PointCloud():
 
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
-                 debug=False):
+                 roof_angle_limit=0.873, debug=False):
         """ Initialize instance
         """
         self.debug = debug
@@ -47,6 +45,7 @@ class PointCloud():
         self.ransac_threshold = ransac_threshold
         self.ransac_n = ransac_n
         self.ransac_iterations = ransac_iterations
+        self.roof_angle_limit = roof_angle_limit
         self.pc = o3d.io.read_point_cloud(file_name)
         self.pc_xyz = np.asarray(self.pc.points)
         if self.pc_xyz.shape[0] < 1:    # empty point cloud?
@@ -165,8 +164,7 @@ class PointCloud():
         # TODO voxel_down_sample() can do similar thing
         if fname is None:
             fname = os.path.splitext(self.file_name)[0] + '.ascii'
-        if self.spare_voxel is None:
-            self.spare_to_voxel()
+        v = self.spare_to_voxel()
         with open(fname, 'w') as f:
             f.write('version: grass7\n')
             f.write('order: snbt\n')
@@ -182,7 +180,7 @@ class PointCloud():
             for k in range(self.rng[2]+1):
                 for i in range(self.rng[0]+1):
                     for j in range(self.rng[1]+1):
-                        f.write('{:.3f} '.format(self.spare_voxel[i, j, k]))
+                        f.write('{:.3f} '.format(v[i, j, k]))
                     f.write('\n')
 
     def spare_export(self, fname=None, typ='.ply'):
@@ -192,12 +190,27 @@ class PointCloud():
             :param typ: type of point cloud o3d supported extension .asc, .pcd, .ply
         """
         if fname is None:
-            fname = os.path.splitext(self.file_name)[0] + typ
+            fname = os.path.splitext(self.file_name)[0] + '_spare' + typ
         else:
             fname = os.path.splitext(fname)[0] + '_spare' + typ
         if self.spare_pc is None:
             self.create_spare_pc()
+        # change index to 0-1 open3d color
+        colors = np.asarray(self.spare_pc.colors) / 255.0
+        self.spare_pc.colors = o3d.utility.Vector3dVector(colors)
         o3d.io.write_point_cloud(fname, self.spare_pc)
+
+    def spare_import(self, fname=None):
+        """ load saved spare point cloud
+
+            :param fname: name of input file
+        """
+        if fname is None:
+            fname = os.path.splitext(self.file_name)[0] + '_spare.ply'
+        self.spare_pc = o3d.io.read_point_cloud(fname)
+        # change color to index
+        colors = np.asarray(self.spare_pc.colors) * 255.0
+        self.spare_pc.colors = o3d.utility.Vector3dVector(colors)
 
     def get_neighbour_index(self, i, j, k):
         """ get list of sheet neighbour voxel indices (max 6)
@@ -250,7 +263,34 @@ class PointCloud():
         v = np.full((self.rng[0], self.rng[1], self.rng[2]), self.NODATA)
         for i in range(col.shape[0]):
             v[int(col[i, 0]), int(col[i, 1]), int(col[i, 2])] = self.voxel_angle(norm[i])
-        self.spare_voxel = v
+        return v
+
+    def roof_segmentation(self):
+        """ find roof voxels in spare point cloud and save it into 2d
+            array """
+        if self.spare_pc is None:
+            return
+        v = self.spare_to_voxel()
+        roofs = np.empty((self.rng[0], self.rng[1]))
+        roof_indices = np.empty((self.rng[0], self.rng[1]), dtype=int)
+        for i in range(self.rng[0]+1):
+            for j in range(self.rng[1]+1):
+                # find first non empty voxel
+                k = self.rng[2]
+                while k >= 0:
+                    if v[j, j, k] is not None:
+                        # can be roof
+                        if v[i, j, k] < self.roof_angle_limit:
+                            roofs[i, j] = v[i, j, k]
+                            roof_indices[i, j] = k
+                        else:
+                            roofs[i, j] = None
+                            roof_indices[i, j] = None
+                        break
+                    k -= 1
+        # find continouos roof areas
+        #TODO
+        return roofs, roof_indices
 
 if __name__ == "__main__":
 
@@ -288,6 +328,8 @@ if __name__ == "__main__":
                     t1 = time.perf_counter()
                     PC.create_spare_pc()
                     PC.spare_export()
+                    #PC.spare_import()
+                    #r, ri = PC.roof_segmentation()
                     t2 = time.perf_counter()
                     #print(bs, threshold, limit, n, n_voxel, t2-t1)
                     print(bs, threshold, limit, n,

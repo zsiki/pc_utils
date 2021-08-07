@@ -34,13 +34,14 @@ with open(JNAME) as jfile:
 
 # read point cloud
 pc = o3d.io.read_point_cloud(IN_PC)
-if VOXEL_DOWNSAMPLE in ["TRUE", "YES", "T", "Y"]:
-    pc = pc.voxel_down_sample(voxel_size=VOXEL_SIZE)
 if STATISTICAL_OUTLIERS in ["TRUE", "YES", "T", "Y"]:
     pc, _ = pc.remove_statistical_outlier(nb_neighbors=NB_NEIGHBORS,
                                           std_ratio=STD_RATIO)
 if RADIUS_OUTLIERS in ["TRUE", "YES", "T", "Y"]:
     pc, _ = pc.remove_radius_outlier(nb_points=NB_POINTS,
                                      radius=RADIUS)
+if VOXEL_DOWNSAMPLE in ["TRUE", "YES", "T", "Y"]:
+    pc = pc.voxel_down_sample(voxel_size=VOXEL_SIZE)
+
 o3d.io.write_point_cloud(OUT_PC, pc)
 o3d.visualization.draw_geometries([pc])

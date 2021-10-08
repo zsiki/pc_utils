@@ -9,6 +9,7 @@
 #   fast selection for empty/non-empty voxels, creating set from voxel indices?
 #   voxel.add((i, j, k))???
 #   detect corners (two/three/four dominant plane in a voxel)
+#   paralel processing of voxels and segmentation of huge clouds
 
 
 import sys
@@ -103,6 +104,8 @@ class PointCloud():
             #best_eq, best_inliers = plane1.fit(voxel_xyz, self.ransac_threshold,
             #                                   self.ransac_n, self.ransac_iterations)
             #m1 = len(best_inliers)
+            # get outlier points
+            #outliers = voxel_pc.select_down_sample(inliers, invert=True)
             m = len(inliers)    # number of inliers
             if m / n > 0.75:    # TODO use parameter instead 0.75 (75% inliers)
                 return plane_model
@@ -125,7 +128,7 @@ class PointCloud():
         color = np.zeros((n_max, 3)).astype(np.uint8)
         normal = np.zeros((n_max, 3)).astype(np.single)
         n_voxel = 0
-        p = np.array([0, 0, 0, 1])  # homogenous coordinate for center of voxel
+        p = np.array([0, 0, 0, 1], dtype=float)  # homogenous coordinate for center of voxel
         for k in range(self.rng[2]+1):
             p[2] = self.pc_mi[2] + (k + 0.5) * self.voxel_size  # z
             for i in range(self.rng[0]+1):
@@ -143,9 +146,9 @@ class PointCloud():
                         xyz[n_voxel, 0] = p[0] - t * plane[0]
                         xyz[n_voxel, 1] = p[1] - t * plane[1]
                         xyz[n_voxel, 2] = p[2] - t * plane[2]
-                        color[n_voxel, 0] = i
-                        color[n_voxel, 1] = j
-                        color[n_voxel, 2] = k
+                        color[n_voxel, 0] = i / 256      # TODO where are these used?
+                        color[n_voxel, 1] = j / 256
+                        color[n_voxel, 2] = k / 256
                         normal[n_voxel, 0] = plane[0]
                         normal[n_voxel, 1] = plane[1]
                         normal[n_voxel, 2] = plane[2]
@@ -196,8 +199,8 @@ class PointCloud():
         if self.spare_pc is None:
             self.create_spare_pc()
         # change index to 0-1 open3d color
-        colors = np.asarray(self.spare_pc.colors) / 255.0
-        self.spare_pc.colors = o3d.utility.Vector3dVector(colors)
+        #colors = np.asarray(self.spare_pc.colors) / 255.0
+        #self.spare_pc.colors = o3d.utility.Vector3dVector(colors)
         o3d.io.write_point_cloud(fname, self.spare_pc)
 
     def spare_import(self, fname=None):
@@ -302,35 +305,31 @@ if __name__ == "__main__":
         JNAME = sys.argv[2]
         with open(JNAME) as jfile:
             JDATA = json.load(jfile)
-            VOXEL_LIST = JDATA["voxel_size"]
-            THRES_LIST = JDATA["threshold"]
-            LIM_LIST = JDATA["limit"]
-            N_LIST = JDATA["n"]
+            VOXEL = JDATA["voxel_size"]
+            THRES = JDATA["threshold"]
+            LIM = JDATA["limit"]
+            N = JDATA["n"]
     else:
-        VOXEL_LIST = [1.0]
-        THRES_LIST = [0.1]
-        LIM_LIST = [25]
-        N_LIST = [5]
+        VOXEL = 1.0
+        THRES = 0.1
+        LIM = 25
+        N = 5
 
     print(FNAME)
     print('voxel_size threshold limit n n_voxel time')
-    for bs in VOXEL_LIST:
-        for threshold in THRES_LIST:
-            for limit in LIM_LIST:
-                for n in N_LIST:
-                    PC = PointCloud(FNAME, voxel_size=bs,
-                                    ransac_threshold=threshold,
-                                    ransac_limit=limit,
-                                    ransac_n=n, debug=False)
-                    if PC.pc_mi is None:
-                        print("Unable to load {}".format(FNAME))
-                        sys.exit()
-                    t1 = time.perf_counter()
-                    PC.create_spare_pc()
-                    PC.spare_export()
-                    #PC.spare_import()
-                    #r, ri = PC.roof_segmentation()
-                    t2 = time.perf_counter()
-                    #print(bs, threshold, limit, n, n_voxel, t2-t1)
-                    print(bs, threshold, limit, n,
-                          np.asarray(PC.spare_pc.points).shape[0], t2-t1)
+    PC = PointCloud(FNAME, voxel_size=VOXEL,
+                    ransac_threshold=THRES,
+                    ransac_limit=LIM,
+                    ransac_n=N, debug=False)
+    if PC.pc_mi is None:
+        print("Unable to load {}".format(FNAME))
+        sys.exit()
+    t1 = time.perf_counter()
+    PC.create_spare_pc()
+    PC.spare_export()
+    #PC.spare_import()
+    #r, ri = PC.roof_segmentation()
+    t2 = time.perf_counter()
+    #print(bs, threshold, limit, n, n_voxel, t2-t1)
+    print(VOXEL, THRES, LIM, N,
+          np.asarray(PC.spare_pc.points).shape[0], t2-t1)

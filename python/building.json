@@ -1,5 +1,6 @@
-{ "voxel_size": [0.5],
-  "threshold" : [0.05, 0.1],
-  "limit": [25, 50],
-  "n": [5, 10]
+{ "voxel_size": 1,
+  "threshold" : 0.5,
+  "limit": 5,
+  "n": 5,
+  "rate": 0.25
 }

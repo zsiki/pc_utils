@@ -1,6 +1,7 @@
-{ "voxel_size": 1,
-  "threshold" : 0.5,
-  "limit": 5,
-  "n": 5,
-  "rate": 0.25
+{ "voxel_size": 0.5,
+  "threshold" : 0.05,
+  "limit": 25,
+  "n": 10,
+  "rate": 0.25,
+  "n_plane": 3
 }

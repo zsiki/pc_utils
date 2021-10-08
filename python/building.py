@@ -35,11 +35,11 @@ class PointCloud():
 
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
-                 roof_angle_limit=0.873, debug=False):
+                 roof_angle_limit=0.873, rate=0.25,
+                 ransac_n_plane=4, debug=False):
         """ Initialize instance
         """
         self.debug = debug
-        self.n_max = 0      # max number of points in a voxel
         self.file_name = file_name
         self.voxel_size = voxel_size
         self.ransac_limit = ransac_limit
@@ -47,6 +47,8 @@ class PointCloud():
         self.ransac_n = ransac_n
         self.ransac_iterations = ransac_iterations
         self.roof_angle_limit = roof_angle_limit
+        self.rate = rate
+        self.ransac_n_plane = ransac_n_plane
         self.pc = o3d.io.read_point_cloud(file_name)
         self.pc_xyz = np.asarray(self.pc.points)
         if self.pc_xyz.shape[0] < 1:    # empty point cloud?
@@ -74,6 +76,9 @@ class PointCloud():
 
     def get_voxel(self, i, j, k):
         """ get voxel at index i, j, k
+            TODO get color too!
+
+            :returns: a numpy array with xyz coordinates
         """
         cond = np.logical_and(np.logical_and(self.pc_index[:, 0] == i,
                                              self.pc_index[:, 1] == j),
@@ -88,28 +93,27 @@ class PointCloud():
             :param k:
             :returns: plane parameters a,b,c,d or None
         """
-        n = voxel_xyz.shape[0]
-        self.n_max = max(n, self.n_max)
         if self.debug:
             print("n: {}".format(n))
-        if n > self.ransac_limit:
-            voxel_pc = o3d.geometry.PointCloud()
-            voxel_pc.points = o3d.utility.Vector3dVector(voxel_xyz)   # create o3d pc
-            # fit ransac plane
-            plane_model, inliers = voxel_pc.segment_plane(self.ransac_threshold,
-                                                          self.ransac_n,
-                                                          self.ransac_iterations)
-            # alternative ransac solution
-            #plane1 = pyrsc.Plane()
-            #best_eq, best_inliers = plane1.fit(voxel_xyz, self.ransac_threshold,
-            #                                   self.ransac_n, self.ransac_iterations)
-            #m1 = len(best_inliers)
-            # get outlier points
-            #outliers = voxel_pc.select_down_sample(inliers, invert=True)
-            m = len(inliers)    # number of inliers
-            if m / n > 0.75:    # TODO use parameter instead 0.75 (75% inliers)
-                return plane_model
-        return None
+        res = []
+        voxel_pc = o3d.geometry.PointCloud()
+        voxel_pc.points = o3d.utility.Vector3dVector(voxel_xyz)   # create o3d pc
+        for i in range(self.ransac_n_plane):
+            n = np.asarray(voxel_pc.points).shape[0]
+            if n > self.ransac_limit:
+                # fit ransac plane
+                plane_model, inliers = voxel_pc.segment_plane(self.ransac_threshold,
+                                                              self.ransac_n,
+                                                              self.ransac_iterations)
+                m = len(inliers)    # number of inliers
+                if m / n > self.rate:
+                    res.append([plane_model, m // 2])
+                    voxel_pc = voxel_pc.select_by_index(inliers, invert=True)   # reduce pc to outliers
+                else:
+                    return res
+            else:
+                return res
+        return res
 
     @staticmethod
     def voxel_angle(plane):
@@ -130,29 +134,29 @@ class PointCloud():
         n_voxel = 0
         p = np.array([0, 0, 0, 1], dtype=float)  # homogenous coordinate for center of voxel
         for k in range(self.rng[2]+1):
-            p[2] = self.pc_mi[2] + (k + 0.5) * self.voxel_size  # z
             for i in range(self.rng[0]+1):
-                p[0] = self.pc_mi[0] + (i + 0.5) * self.voxel_size # x
                 for j in range(self.rng[1]+1):
-                    p[1] = self.pc_mi[1] + (j + 0.5) * self.voxel_size  # y
                     # collect points in voxel
                     voxel_xyz = self.get_voxel(i, j, k)
-                    # find best fitting RANSAC plane
-                    plane = self.voxel_ransac(voxel_xyz)
-                    # store
-                    if plane is not None:
-                        # x, y, z projected to the plane
-                        t = np.dot(p, plane)
-                        xyz[n_voxel, 0] = p[0] - t * plane[0]
-                        xyz[n_voxel, 1] = p[1] - t * plane[1]
-                        xyz[n_voxel, 2] = p[2] - t * plane[2]
-                        color[n_voxel, 0] = i / 256      # TODO where are these used?
-                        color[n_voxel, 1] = j / 256
-                        color[n_voxel, 2] = k / 256
-                        normal[n_voxel, 0] = plane[0]
-                        normal[n_voxel, 1] = plane[1]
-                        normal[n_voxel, 2] = plane[2]
-                        n_voxel += 1
+                    if voxel_xyz.shape[0] > self.ransac_limit:
+                        # find best fitting RANSAC plane
+                        res = self.voxel_ransac(voxel_xyz)
+                        for plane, index in res:
+                            # store
+                            if plane is not None:
+                                # x, y, z projected to the plane
+                                p[0:3] = voxel_xyz[index]
+                                t = np.dot(p, plane)
+                                xyz[n_voxel, 0] = p[0] - t * plane[0]
+                                xyz[n_voxel, 1] = p[1] - t * plane[1]
+                                xyz[n_voxel, 2] = p[2] - t * plane[2]
+                                color[n_voxel, 0] = i      # TODO where are these used?
+                                color[n_voxel, 1] = j
+                                color[n_voxel, 2] = k
+                                normal[n_voxel, 0] = plane[0]
+                                normal[n_voxel, 1] = plane[1]
+                                normal[n_voxel, 2] = plane[2]
+                                n_voxel += 1
         xyz = np.resize(xyz, (n_voxel, 3))
         color = np.resize(color, (n_voxel, 3))
         normal = np.resize(normal, (n_voxel, 3))
@@ -212,7 +216,7 @@ class PointCloud():
             fname = os.path.splitext(self.file_name)[0] + '_spare.ply'
         self.spare_pc = o3d.io.read_point_cloud(fname)
         # change color to index
-        colors = np.asarray(self.spare_pc.colors) * 255.0
+        #colors = np.asarray(self.spare_pc.colors) * 255.0
         self.spare_pc.colors = o3d.utility.Vector3dVector(colors)
 
     def get_neighbour_index(self, i, j, k):
@@ -223,7 +227,7 @@ class PointCloud():
             :param k: storey index of actual voxel
             :return: row indices of available
         """
-        col = np.asarray(self.spare_pc.colors)
+        #col = np.asarray(self.spare_pc.colors) TODO does not work!
         dif = np.abs(col - np.array([i, j, k]))
         sdif = np.sum(dif, axis=1)
         inds = np.where(sdif == 1)
@@ -237,7 +241,7 @@ class PointCloud():
             :param k: storey index of actual voxel
             :return: row indices of voxel or None if not exists
         """
-        col = np.asarray(self.spare_pc.colors)
+        col = np.asarray(self.spare_pc.colors)  # TODO does not work
         try:
             ind = np.where(np.all(col == (i, j, k), axis=1))[0][0]
         except Exception:
@@ -250,6 +254,7 @@ class PointCloud():
             :param ind: index of point in point cloud
             :return: tuple of voxel indices or None
         """
+        # TODO does not work
         try:
             col = np.asarray(self.spare_pc.colors)[ind]
         except Exception:
@@ -309,18 +314,21 @@ if __name__ == "__main__":
             THRES = JDATA["threshold"]
             LIM = JDATA["limit"]
             N = JDATA["n"]
+            RATE = JDATA["rate"]
+            NP = JDATA["n_plane"]
     else:
         VOXEL = 1.0
         THRES = 0.1
         LIM = 25
         N = 5
+        RATE = 0.25
+        NP = 4
 
     print(FNAME)
     print('voxel_size threshold limit n n_voxel time')
-    PC = PointCloud(FNAME, voxel_size=VOXEL,
-                    ransac_threshold=THRES,
-                    ransac_limit=LIM,
-                    ransac_n=N, debug=False)
+    PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
+                    ransac_limit=LIM, ransac_n=N, rate=RATE,
+                    ransac_n_plane=NP, debug=False)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
         sys.exit()

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
-""" Downsample point cloud and filter """
+""" Downsample point cloud and filter
+
+    Input parameters can be specified in a JSON file
+"""
 
 import sys
 import json
@@ -15,27 +18,32 @@ JNAME = sys.argv[3]
 VOXEL_DOWNSAMPLE = 0
 STATISTICAL_OUTLIERS = 0
 RADIUS_OUTLIERS = 0
-VOXEL_SIZE = -1
-NB_NEIGHBORS = -1
-STD_RATIO = -1
-NB_POINTS = -1
-RADIUS = -1
+VOXEL_SIZE = 0.1
+NB_NEIGHBORS = 20
+STD_RATIO = 2.0
+NB_POINTS = 16
+RADIUS = 0.4
 with open(JNAME) as jfile:
     JDATA = json.load(jfile)
     if "voxel_downsample" in JDATA:
         VOXEL_DOWNSAMPLE = JDATA["voxel_downsample"]
         if VOXEL_DOWNSAMPLE > 0:
-            VOXEL_SIZE = JDATA["voxel_size"]
+            if "voxel_size" in JDATA:
+                VOXEL_SIZE = JDATA["voxel_size"]
     if "statistical_outliers" in JDATA:
         STATISTICAL_OUTLIERS = JDATA["statistical_outliers"]
         if STATISTICAL_OUTLIERS > 0:
-            NB_NEIGHBORS = JDATA["nb_neighbors"]
-            STD_RATIO = JDATA["std_ratio"]
+            if "nb_neighbors" in JDATA:
+                NB_NEIGHBORS = JDATA["nb_neighbors"]
+            if "std_ratio" in JDATA:
+                STD_RATIO = JDATA["std_ratio"]
     if "radius_outliers" in JDATA:
         RADIUS_OUTLIERS = JDATA["radius_outliers"]
         if RADIUS_OUTLIERS > 0:
-            NB_POINTS = JDATA["nb_points"]
-            RADIUS = JDATA["radius"]
+            if "nb_points" in JDATA:
+                NB_POINTS = JDATA["nb_points"]
+            if "radius" in JDATA:
+                RADIUS = JDATA["radius"]
 
 # read point cloud
 pc = o3d.io.read_point_cloud(IN_PC)

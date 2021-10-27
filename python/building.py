@@ -20,7 +20,6 @@ import time
 import json
 import numpy as np
 import open3d as o3d
-#import pyransac3d as pyrsc      # just for checking open3D
 
 class PointCloud():
     """
@@ -63,6 +62,7 @@ class PointCloud():
             self.rng = np.max(self.pc_index, axis=0)  # range of indices
         self.spare_pc = None    # down sampled point cloud
         self.spare_voxel = None # voxels with normal direction
+        self.counter = 0    # counter for parts output
 
     def get_voxel_old(self, i, j, k):
         """ get voxel at index i, j, k
@@ -109,9 +109,15 @@ class PointCloud():
                                                            self.ransac_n,
                                                            self.ransac_iterations)
                 m = len(inliers)    # number of inliers
-                tmp = voxel.select_by_index(inliers)
-                np.savetxt('temp.txt', np.asarray(tmp.points))
+                sys.stderr.write("{:4d} {:4d} {:6d} {:6d}\n".format(self.counter, i, n, m))
+                sys.stderr.write("{:.6f} {:.6f} {:.6} {:.6}\n".format(plane_model[0], plane_model[1], plane_model[2], plane_model[3]))
                 if m / n > self.rate:
+                    tmp = voxel.select_by_index(inliers)
+                    np.savetxt('temp{}.txt'.format(self.counter), np.asarray(tmp.points))
+
+#                    o3d.io.write_triangle_mesh('temp{}.obj'.format(self.counter),
+#                            o3d.geometry.compute_point_cloud_convex_hull(tmp))
+                    self.counter += 1
                     res.append([plane_model, m // 2])
                     voxel = voxel.select_by_index(inliers, invert=True)   # reduce pc to outliers
                 else:
@@ -164,7 +170,10 @@ class PointCloud():
                             xyz[n_voxel, 1] = p[1] - t * plane[1]
                             xyz[n_voxel, 2] = p[2] - t * plane[2]
                             normal[n_voxel] = plane[0:3]
-                            color[n_voxel] = np.asarray(voxel.colors)[index]
+                            try:
+                                color[n_voxel] = np.asarray(voxel.colors)[index]
+                            except IndexError:
+                                color[n_voxel] = np.array([1, 1, 1])
                             n_voxel += 1
         xyz = np.resize(xyz, (n_voxel, 3))
         normal = np.resize(normal, (n_voxel, 3))
@@ -352,6 +361,7 @@ if __name__ == "__main__":
             THRES = JDATA["threshold"]
             LIM = JDATA["limit"]
             N = JDATA["n"]
+            ITERATION = JDATA["iteration"]
             RATE = JDATA["rate"]
             NP = JDATA["n_plane"]
     else:
@@ -359,6 +369,7 @@ if __name__ == "__main__":
         THRES = 0.1
         LIM = 25
         N = 5
+        ITERATION = 20
         RATE = 0.25
         NP = 4
 

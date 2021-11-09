@@ -29,15 +29,16 @@ class PointCloud():
         :param ransac_threshold: max distance from ransac plane
         :param ransac_n: number of random points for ransac plane
         :param ransac_iteration: number of iterations for ransac
-        :param roof_angle_limit: threshold to separate wall and roof planes
-        :param rate: percent of points fit on ransac plane to set voxel as plane
+        :param angle_limits: threshold to separate wall, roof and other planes
+        :param rate: list of percents of points fit on ransac plane
         :param ransac_n_plane: maximal number of planes to search in a voxel
     """
     NODATA = -9999.0
 
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
-                 roof_angle_limit=0.873, rate=0.25, ransac_n_plane=4):
+                 angle_limits=[0.087, 0.698], rate=[0.2, 0.45, 0.65, 0.8],
+                 ransac_n_plane=4):
         """ Initialize instance
         """
         self.file_name = file_name
@@ -46,7 +47,7 @@ class PointCloud():
         self.ransac_threshold = ransac_threshold
         self.ransac_n = ransac_n
         self.ransac_iterations = ransac_iterations
-        self.roof_angle_limit = roof_angle_limit
+        self.angle_limits = angle_limits
         self.rate = rate
         self.ransac_n_plane = ransac_n_plane
         self.pc = o3d.io.read_point_cloud(file_name)
@@ -80,13 +81,14 @@ class PointCloud():
         return voxel
 
     def get_voxel(self, i, j, k):
-        """ get voxel at index i, j, k
+        """ get points in voxel at index i, j, k
 
+            :param i, j, k: indices of voxel
             :returns: point cloud with points in voxel
         """
         x = self.pc_mi[0] + i * self.voxel_size
         y = self.pc_mi[1] + j * self.voxel_size
-        x = self.pc_mi[2] + k * self.voxel_size
+        z = self.pc_mi[2] + k * self.voxel_size
         x1 = x + self.voxel_size
         y1 = y + self.voxel_size
         z1 = z + self.voxel_size
@@ -111,15 +113,14 @@ class PointCloud():
                 m = len(inliers)    # number of inliers
                 sys.stderr.write("{:4d} {:4d} {:6d} {:6d}\n".format(self.counter, i, n, m))
                 sys.stderr.write("{:.6f} {:.6f} {:.6} {:.6}\n".format(plane_model[0], plane_model[1], plane_model[2], plane_model[3]))
-                if m / n > self.rate:
+                if m / n > self.rate[i]:
                     tmp = voxel.select_by_index(inliers)
                     np.savetxt('temp{}.txt'.format(self.counter), np.asarray(tmp.points))
 
-#                    o3d.io.write_triangle_mesh('temp{}.obj'.format(self.counter),
-#                            o3d.geometry.compute_point_cloud_convex_hull(tmp))
                     self.counter += 1
                     res.append([plane_model, m // 2])
-                    voxel = voxel.select_by_index(inliers, invert=True)   # reduce pc to outliers
+                    # reduce pc to outliers
+                    voxel = voxel.select_by_index(inliers, invert=True)
                 else:
                     return res
             else:
@@ -128,12 +129,12 @@ class PointCloud():
 
     @staticmethod
     def voxel_angle(plane):
-        """ classify voxel by normal direction
+        """ calculate angle of normal to the vertical direction
 
+            :param plane: vector of plane equation coefficients
             :return: angle of normal direction from vertical in radians in 0-pi/2 range
         """
-        h = math.hypot(plane[0], plane[1])
-        return math.atan2(abs(plane[2]), h)
+        return math.atan2(abs(plane[2]), math.hypot(plane[0], plane[1]))
 
     def create_spare_pc(self):
         """ create spare point cloud for plane voxels only
@@ -153,7 +154,7 @@ class PointCloud():
                 x = self.pc_mi[0] + i * self.voxel_size
                 zxbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, self.pc_mi[1], z),
                     max_bound=(x + self.voxel_size, self.pc_ma[1], z + self.voxel_size))
-                zxvoxels = self.pc.crop(zxbox)
+                zxvoxels = zvoxels.crop(zxbox)
                 for j in range(self.rng[1]+1):
                     y = self.pc_mi[1] + j * self.voxel_size  # y
                     bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, y, z),
@@ -219,36 +220,11 @@ class PointCloud():
         self.spare_pc.points = o3d.utility.Vector3dVector(xyz)
         self.spare_pc.normals = o3d.utility.Vector3dVector(normal)
 
-    def voxel_export(self, fname=None):
-        """ output grass 3D raster
-        """
-        # TODO voxel_down_sample() can do similar thing
-        if fname is None:
-            fname = os.path.splitext(self.file_name)[0] + '.ascii'
-        v = self.spare_to_voxel()
-        with open(fname, 'w') as f:
-            f.write('version: grass7\n')
-            f.write('order: snbt\n')
-            f.write('north: {:.3f}\n'.format(PC.pc_mi[1] + self.rng[1] * PC.voxel_size))
-            f.write('south: {:.3f}\n'.format(PC.pc_mi[1]))
-            f.write('east: {:.3f}\n'.format(PC.pc_mi[0] + self.rng[0] * PC.voxel_size))
-            f.write('west: {:.3f}\n'.format(PC.pc_mi[0]))
-            f.write('top: {:.3f}\n'.format(PC.pc_mi[2] + self.rng[2] * PC.voxel_size))
-            f.write('bottom: {:.3f}\n'.format(PC.pc_mi[2]))
-            f.write('rows: {}\n'.format(self.rng[1]))
-            f.write('cols: {}\n'.format(self.rng[0]))
-            f.write('levels: {}\n'.format(self.rng[2]))
-            for k in range(self.rng[2]+1):
-                for i in range(self.rng[0]+1):
-                    for j in range(self.rng[1]+1):
-                        f.write('{:.3f} '.format(v[i, j, k]))
-                    f.write('\n')
-
     def spare_export(self, fname=None, typ='.ply'):
         """ output spare cloud
 
             :param fname: name of output file, default same as loaded
-            :param typ: type of point cloud o3d supported extension .asc, .pcd, .ply
+            :param typ: type of point cloud o3d supported extension .xyz, .pcd, .ply, pts, xyzn, xyzrgb
         """
         if fname is None:
             fname = os.path.splitext(self.file_name)[0] + '_spare' + typ
@@ -267,85 +243,42 @@ class PointCloud():
             fname = os.path.splitext(self.file_name)[0] + '_spare.ply'
         self.spare_pc = o3d.io.read_point_cloud(fname)
 
-    def get_neighbour_index(self, i, j, k):
-        """ get list of sheet neighbour voxel indices (max 6)
-
-            :param i: row index of actual voxel
-            :param j: column index of actual voxel
-            :param k: storey index of actual voxel
-            :return: row indices of available
-        """
-        dif = np.abs(col - np.array([i, j, k]))
-        sdif = np.sum(dif, axis=1)
-        inds = np.where(sdif == 1)
-        return inds
-
-    def voxel_to_index(self, i, j, k):
-        """ change voxel index to point cloud index
-
-            :param i: row index of actual voxel
-            :param j: column index of actual voxel
-            :param k: storey index of actual voxel
-            :return: row indices of voxel or None if not exists
-        """
-        col = np.asarray(self.spare_pc.colors)  # TODO does not work
-        try:
-            ind = np.where(np.all(col == (i, j, k), axis=1))[0][0]
-        except Exception:
-            ind = None
-        return ind
-
-    def spare_index_to_voxel(self, ind):
-        """ calculate voxel indices (i, j, k) from point index
-
-            :param ind: index of point in point cloud
-            :return: tuple of voxel indices or None
-        """
-        # TODO does not work
-        try:
-            col = np.asarray(self.spare_pc.colors)[ind]
-        except Exception:
-            return None
-        return (int(col[0]), int(col[1]), int(col[2]))
-
-    def spare_to_voxel(self):
-        """ convert spare point cloud to voxels with normal angle
+    def segmentation(self):
+        """ create three point cloud roof, wall and other category
         """
         if self.spare_pc is None:
-            return None
-        col = np.asarray(self.spare_pc.colors)
-        norm = np.asarray(self.spare_pc.normals)
-        v = np.full((self.rng[0], self.rng[1], self.rng[2]), self.NODATA)
-        for i in range(col.shape[0]):
-            v[int(col[i, 0]), int(col[i, 1]), int(col[i, 2])] = self.voxel_angle(norm[i])
-        return v
+            raise ValueError('No space point cloud')
+        roof = []
+        wall = []
+        other = []
+        normals = np.asarray(self.spare_pc.normals)
+        for i in range(normals.shape[0]):
+            # angle from horizontal
+            angle = abs(self.voxel_angle(normals[i]))
+            if angle < self.angle_limits[0]:    # 0-5 degree
+                wall.append(i)
+            elif angle < self.angle_limits[1]:  # 5-40 degree
+                other.append(i)
+            else:
+                roof.append(i)                  # 40-90 degree
+        return roof, wall, other
 
-    def roof_segmentation(self):
-        """ find roof voxels in spare point cloud and save it into 2d
-            array """
+    def segment_export(self, inliers, segment, fname=None, typ='.ply'):
+        """ export inliers points
+
+            :param inliers: list of point indices to export
+            :param segment: tag for segment
+            :param fname: path to file
+            :param typ: file type
+        """
+        if fname is None:
+            fname = os.path.splitext(self.file_name)[0] + segment + typ
+        else:
+            fname = os.path.splitext(fname)[0] + segment + typ
         if self.spare_pc is None:
-            return
-        v = self.spare_to_voxel()
-        roofs = np.empty((self.rng[0], self.rng[1]))
-        roof_indices = np.empty((self.rng[0], self.rng[1]), dtype=int)
-        for i in range(self.rng[0]+1):
-            for j in range(self.rng[1]+1):
-                # find first non empty voxel
-                k = self.rng[2]
-                while k >= 0:
-                    if v[j, j, k] is not None:
-                        # can be roof
-                        if v[i, j, k] < self.roof_angle_limit:
-                            roofs[i, j] = v[i, j, k]
-                            roof_indices[i, j] = k
-                        else:
-                            roofs[i, j] = None
-                            roof_indices[i, j] = None
-                        break
-                    k -= 1
-        # find continouos roof areas
-        #TODO
-        return roofs, roof_indices
+            raise ValueError("No spare point cloud")
+        s = self.spare_pc.select_by_index(inliers)
+        o3d.io.write_point_cloud(fname, s)
 
 if __name__ == "__main__":
 
@@ -370,7 +303,7 @@ if __name__ == "__main__":
         LIM = 25
         N = 5
         ITERATION = 20
-        RATE = 0.25
+        RATE = [0.20, 0.45, 0.65, 0.8]
         NP = 4
 
     print(FNAME)
@@ -384,6 +317,10 @@ if __name__ == "__main__":
     t1 = time.perf_counter()
     PC.create_spare_pc()
     PC.spare_export()
+    r, w, o = PC.segmentation()
+    PC.segment_export(r, '_roof')
+    PC.segment_export(w, '_wall')
+    PC.segment_export(o, '_other')
     #PC.spare_import()
     #r, ri = PC.roof_segmentation()
     t2 = time.perf_counter()

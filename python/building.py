@@ -5,10 +5,9 @@
     filtered out before.
 """
 #   TODO list
-#   colors in o3d are 0-1 range voxel indices are in 0-n range
+#   colors lost in output?
 #   fast selection for empty/non-empty voxels, creating set from voxel indices?
 #   voxel.add((i, j, k))???
-#   detect corners (two/three/four dominant plane in a voxel) READY
 #   paralel processing of voxels and segmentation of huge clouds
 #   segmented point cloud (original points on accepted planes) should be collected
 #   use octree for voxel subset
@@ -18,6 +17,7 @@ import math
 import os.path
 import time
 import json
+import argparse
 import numpy as np
 import open3d as o3d
 
@@ -25,7 +25,7 @@ class PointCloud():
     """
         :param file_name: open3d compatible input point cloud file
         :param voxel_size: size of voxels to fit plane
-        :param ransac_limit: minimal number of point for ransac
+        :param ransac_limit: minimal number of points for ransac
         :param ransac_threshold: max distance from ransac plane
         :param ransac_n: number of random points for ransac plane
         :param ransac_iteration: number of iterations for ransac
@@ -148,12 +148,12 @@ class PointCloud():
         for k in range(self.rng[2]+1):
             z = self.pc_mi[2] + k * self.voxel_size
             zbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(self.pc_mi[0], self.pc_mi[1], z),
-                    max_bound=(self.pc_ma[0], self.pc_ma[1], z + self.voxel_size))
+                                                       max_bound=(self.pc_ma[0], self.pc_ma[1], z + self.voxel_size))
             zvoxels = self.pc.crop(zbox)
             for i in range(self.rng[0]+1):
                 x = self.pc_mi[0] + i * self.voxel_size
                 zxbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, self.pc_mi[1], z),
-                    max_bound=(x + self.voxel_size, self.pc_ma[1], z + self.voxel_size))
+                                                            max_bound=(x + self.voxel_size, self.pc_ma[1], z + self.voxel_size))
                 zxvoxels = zvoxels.crop(zxbox)
                 for j in range(self.rng[1]+1):
                     y = self.pc_mi[1] + j * self.voxel_size  # y
@@ -282,12 +282,30 @@ class PointCloud():
 
 if __name__ == "__main__":
 
-    if len(sys.argv) > 1:
-        FNAME = sys.argv[1]
-    else:
-        FNAME = 'barnag_dtm_test_ndsm.ply'
-    if len(sys.argv) > 2:
-        JNAME = sys.argv[2]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('name', metavar='file_name', type=str, nargs=1,
+                        help='point cloud to process')
+    parser.add_argument('-v', '--voxel_size', type=float, default=1.0,
+                        help='Voxel size')
+    parser.add_argument('-t', '--threshold', type=float, default=0.1,
+                        help='Threshold distance to RANSAC plane')
+    parser.add_argument('-l', '--limit', type=int, default=25,
+                        help='Minimal number of points for ransac')
+    parser.add_argument('-n', '--ransac_n', type=int, default=5,
+                        help='Number of random points for ransac plane')
+    parser.add_argument('-i', '--iterations', type=int, default=20,
+                        help='Number of iterations for ransac plane')
+    parser.add_argument('-a', '--angles', type=float, nargs=2,
+                        help='Angle borders for walls, others and roofs')
+    parser.add_argument('-r', '--rates', type=float, nargs='+',
+                        help='Rates for points on the plane')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (json)')
+    args = parser.parse_args()
+    FNAME = args.name[0]
+    # if json config given other parameters are ignored
+    if args.config is not None:
+        JNAME = args.config
         with open(JNAME) as jfile:
             JDATA = json.load(jfile)
             VOXEL = JDATA["voxel_size"]
@@ -295,22 +313,28 @@ if __name__ == "__main__":
             LIM = JDATA["limit"]
             N = JDATA["n"]
             ITERATION = JDATA["iteration"]
+            ANG = JDATA["angle_limits"]
             RATE = JDATA["rate"]
             NP = JDATA["n_plane"]
     else:
-        VOXEL = 1.0
-        THRES = 0.1
-        LIM = 25
-        N = 5
-        ITERATION = 20
-        RATE = [0.20, 0.45, 0.65, 0.8]
-        NP = 4
+        VOXEL = args.voxel_size
+        THRES = args.threshold
+        LIM = args.limit
+        N = args.ransac_n
+        ITERATION = args.iterations
+        if args.rates is None:
+            RATE = [0.20, 0.45, 0.65, 0.8]
+        else:
+            RATE = args.rates
+        if args.angles is None:
+            ANG = [0.087, 0.698]
+        else:
+            ANG = args.angles
+        NP = args.ransac_n
 
-    print(FNAME)
-    print('voxel_size threshold limit n n_voxel time')
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,
-                    ransac_n_plane=NP)
+                    angle_limits=ANG, ransac_n_plane=NP)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
         sys.exit()
@@ -318,11 +342,9 @@ if __name__ == "__main__":
     PC.create_spare_pc()
     PC.spare_export()
     r, w, o = PC.segmentation()
-    PC.segment_export(r, '_roof')
-    PC.segment_export(w, '_wall')
-    PC.segment_export(o, '_other')
-    #PC.spare_import()
-    #r, ri = PC.roof_segmentation()
+    PC.segment_export(r, '_roof', '.psd')
+    PC.segment_export(w, '_wall', '.psd')
+    PC.segment_export(o, '_other', '.psd')
     t2 = time.perf_counter()
     print(VOXEL, THRES, LIM, N,
           np.asarray(PC.spare_pc.points).shape[0], t2-t1)

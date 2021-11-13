@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 """
-    Search for buildings in a point cloud, ground and vegetation should be
-    filtered out before.
+    Create spare point cloud using ransac planes and
+    separate wall, roof and other groups by normal angles of
+    spare point cloud.
+    Input point cloud should be a nDSM, ground and low vegetation removed
 """
 #   TODO list
 #   colors lost in output?
 #   fast selection for empty/non-empty voxels, creating set from voxel indices?
 #   voxel.add((i, j, k))???
 #   paralel processing of voxels and segmentation of huge clouds
-#   segmented point cloud (original points on accepted planes) should be collected
-#   use octree for voxel subset
+#   segmented point cloud (original points on accepted planes) should be collected too
 
 import sys
 import math
@@ -32,13 +33,13 @@ class PointCloud():
         :param angle_limits: threshold to separate wall, roof and other planes
         :param rate: list of percents of points fit on ransac plane
         :param ransac_n_plane: maximal number of planes to search in a voxel
+        :param out_dir: ouput directory for results
     """
-    NODATA = -9999.0
 
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
                  angle_limits=[0.087, 0.698], rate=[0.2, 0.45, 0.65, 0.8],
-                 ransac_n_plane=4):
+                 ransac_n_plane=4, out_dir='.'):
         """ Initialize instance
         """
         self.file_name = file_name
@@ -50,6 +51,7 @@ class PointCloud():
         self.angle_limits = angle_limits
         self.rate = rate
         self.ransac_n_plane = ransac_n_plane
+        self.out_dir = out_dir
         self.pc = o3d.io.read_point_cloud(file_name)
         pc_xyz = np.asarray(self.pc.points)
         if pc_xyz.shape[0] < 1:    # empty point cloud?
@@ -115,8 +117,7 @@ class PointCloud():
                 sys.stderr.write("{:.6f} {:.6f} {:.6} {:.6}\n".format(plane_model[0], plane_model[1], plane_model[2], plane_model[3]))
                 if m / n > self.rate[i]:
                     tmp = voxel.select_by_index(inliers)
-                    np.savetxt('temp{}.txt'.format(self.counter), np.asarray(tmp.points))
-
+                    np.savetxt(os.path.join(self.out_dir, f'temp{self.counter}.txt'), np.asarray(tmp.points))
                     self.counter += 1
                     res.append([plane_model, m // 2])
                     # reduce pc to outliers
@@ -227,9 +228,9 @@ class PointCloud():
             :param typ: type of point cloud o3d supported extension .xyz, .pcd, .ply, pts, xyzn, xyzrgb
         """
         if fname is None:
-            fname = os.path.splitext(self.file_name)[0] + '_spare' + typ
+            fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(self.file_name)[0]) + '_spare' + typ)
         else:
-            fname = os.path.splitext(fname)[0] + '_spare' + typ
+            fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(fname)[0]) + '_spare' + typ)
         if self.spare_pc is None:
             self.create_spare_pc()
         o3d.io.write_point_cloud(fname, self.spare_pc)
@@ -273,8 +274,10 @@ class PointCloud():
         """
         if fname is None:
             fname = os.path.splitext(self.file_name)[0] + segment + typ
+            fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(self.file_name)[0]) + segment + typ)
         else:
             fname = os.path.splitext(fname)[0] + segment + typ
+            fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(fname)[0]) + segment + typ)
         if self.spare_pc is None:
             raise ValueError("No spare point cloud")
         s = self.spare_pc.select_by_index(inliers)
@@ -299,6 +302,8 @@ if __name__ == "__main__":
                         help='Angle borders for walls, others and roofs')
     parser.add_argument('-r', '--rates', type=float, nargs='+',
                         help='Rates for points on the plane')
+    parser.add_argument('-o', '--out_dir', type=str, default=".",
+                        help='Path to output directory')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (json)')
     args = parser.parse_args()
@@ -316,6 +321,7 @@ if __name__ == "__main__":
             ANG = JDATA["angle_limits"]
             RATE = JDATA["rate"]
             NP = JDATA["n_plane"]
+            OUT_DIR = JDATA["out_dir"]
     else:
         VOXEL = args.voxel_size
         THRES = args.threshold
@@ -331,6 +337,7 @@ if __name__ == "__main__":
         else:
             ANG = args.angles
         NP = args.ransac_n
+        OUT_DIR = args.out_dir
 
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,

@@ -39,7 +39,7 @@ class PointCloud():
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
                  angle_limits=[0.087, 0.698], rate=[0.2, 0.45, 0.65, 0.8],
-                 ransac_n_plane=4, out_dir='.'):
+                 ransac_n_plane=4, out_dir='.', debug=False):
         """ Initialize instance
         """
         self.file_name = file_name
@@ -52,6 +52,7 @@ class PointCloud():
         self.rate = rate
         self.ransac_n_plane = ransac_n_plane
         self.out_dir = out_dir
+        self.debug = debug
         self.pc = o3d.io.read_point_cloud(file_name)
         pc_xyz = np.asarray(self.pc.points)
         if pc_xyz.shape[0] < 1:    # empty point cloud?
@@ -113,11 +114,19 @@ class PointCloud():
                                                            self.ransac_n,
                                                            self.ransac_iterations)
                 m = len(inliers)    # number of inliers
-                sys.stderr.write("{:4d} {:4d} {:6d} {:6d}\n".format(self.counter, i, n, m))
-                sys.stderr.write("{:.6f} {:.6f} {:.6} {:.6}\n".format(plane_model[0], plane_model[1], plane_model[2], plane_model[3]))
+                if self.debug:
+                    print("{:4d} {:4d} {:6d} {:6d}".format(self.counter,
+                                                           i, n, m))
+                    print("{:.6f} {:.6f} {:.6} {:.6}".format(plane_model[0],
+                                                             plane_model[1],
+                                                             plane_model[2],
+                                                             plane_model[3]))
                 if m / n > self.rate[i]:
-                    tmp = voxel.select_by_index(inliers)
-                    np.savetxt(os.path.join(self.out_dir, f'temp{self.counter}.txt'), np.asarray(tmp.points))
+                    if self.debug:
+                        tmp = voxel.select_by_index(inliers)
+                        np.savetxt(os.path.join(self.out_dir,
+                                   f'temp{self.counter}.txt'),
+                                   np.asarray(tmp.points))
                     self.counter += 1
                     res.append([plane_model, m // 2])
                     # reduce pc to outliers
@@ -306,6 +315,8 @@ if __name__ == "__main__":
                         help='Path to output directory')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (json)')
+    parser.add_argument('-d', '--debug', action="store_true",
+                        help='Save ascii point cloud for each planei and print plane data')
     args = parser.parse_args()
     FNAME = args.name[0]
     # if json config given other parameters are ignored
@@ -322,6 +333,7 @@ if __name__ == "__main__":
             RATE = JDATA["rate"]
             NP = JDATA["n_plane"]
             OUT_DIR = JDATA["out_dir"]
+            DEBUG = JDATA["debug"]
     else:
         VOXEL = args.voxel_size
         THRES = args.threshold
@@ -338,10 +350,12 @@ if __name__ == "__main__":
             ANG = args.angles
         NP = args.ransac_n
         OUT_DIR = args.out_dir
+        DEBUG = args.debug
 
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,
-                    angle_limits=ANG, ransac_n_plane=NP)
+                    angle_limits=ANG, ransac_n_plane=NP, out_dir=OUT_DIR,
+                    debug=DEBUG)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
         sys.exit()

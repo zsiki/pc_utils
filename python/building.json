@@ -5,5 +5,7 @@
   "iteration": 25,
   "angle_limits": [0.087, 0.698],
   "rate": [0.20, 0.45, 0.65, 0.8],
-  "n_plane": 4
+  "n_plane": 4,
+  "out_dir": "./temp",
+  "debug": 0
 }

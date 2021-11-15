@@ -273,7 +273,7 @@ class PointCloud():
                 roof.append(i)                  # 40-90 degree
         return roof, wall, other
 
-    def segment_export(self, inliers, segment, fname=None, typ='.ply'):
+    def segment_export(self, inliers, segment, typ='.ply', fname=None):
         """ export inliers points
 
             :param inliers: list of point indices to export
@@ -282,10 +282,8 @@ class PointCloud():
             :param typ: file type
         """
         if fname is None:
-            fname = os.path.splitext(self.file_name)[0] + segment + typ
             fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(self.file_name)[0]) + segment + typ)
         else:
-            fname = os.path.splitext(fname)[0] + segment + typ
             fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(fname)[0]) + segment + typ)
         if self.spare_pc is None:
             raise ValueError("No spare point cloud")
@@ -360,12 +358,13 @@ if __name__ == "__main__":
         print("Unable to load {}".format(FNAME))
         sys.exit()
     t1 = time.perf_counter()
+    # TODO skip spare creation, use original but normals should be created
     PC.create_spare_pc()
     PC.spare_export()
     r, w, o = PC.segmentation()
-    PC.segment_export(r, '_roof', '.psd')
-    PC.segment_export(w, '_wall', '.psd')
-    PC.segment_export(o, '_other', '.psd')
+    PC.segment_export(r, '_roof', '.pcd')
+    PC.segment_export(w, '_wall', '.pcd')
+    PC.segment_export(o, '_other', '.pcd')
     t2 = time.perf_counter()
     print(VOXEL, THRES, LIM, N,
           np.asarray(PC.spare_pc.points).shape[0], t2-t1)

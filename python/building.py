@@ -11,7 +11,6 @@
 #   fast selection for empty/non-empty voxels, creating set from voxel indices?
 #   voxel.add((i, j, k))???
 #   paralel processing of voxels and segmentation of huge clouds
-#   segmented point cloud (original points on accepted planes) should be collected too
 
 import sys
 import math
@@ -106,6 +105,7 @@ class PointCloud():
             :returns: list of plane parameters a,b,c,d
         """
         res = []
+        self.counter += 1
         for i in range(self.ransac_n_plane):
             n = np.asarray(voxel.points).shape[0]
             if n > self.ransac_limit:
@@ -114,20 +114,19 @@ class PointCloud():
                                                            self.ransac_n,
                                                            self.ransac_iterations)
                 m = len(inliers)    # number of inliers
-                if self.debug:
-                    print("{:4d} {:4d} {:6d} {:6d}".format(self.counter,
-                                                           i, n, m))
-                    print("{:.6f} {:.6f} {:.6} {:.6}".format(plane_model[0],
-                                                             plane_model[1],
-                                                             plane_model[2],
-                                                             plane_model[3]))
+                #if self.debug:
+                #    print("{:4d} {:4d} {:6d} {:6d}".format(self.counter,
+                #                                           i, n, m))
+                #    print("{:.6f} {:.6f} {:.6} {:.6}".format(plane_model[0],
+                #                                             plane_model[1],
+                #                                             plane_model[2],
+                #                                             plane_model[3]))
                 if m / n > self.rate[i]:
                     if self.debug:
                         tmp = voxel.select_by_index(inliers)
-                        np.savetxt(os.path.join(self.out_dir,
-                                   f'temp{self.counter}.txt'),
-                                   np.asarray(tmp.points))
-                    self.counter += 1
+                        pid = self.counter * 10 + i
+                        np.savetxt(os.path.join(self.out_dir, f'temp{pid}.txt'),
+                                   np.c_[np.asarray(tmp.points), np.full(m, pid)])
                     res.append([plane_model, m // 2])
                     # reduce pc to outliers
                     voxel = voxel.select_by_index(inliers, invert=True)
@@ -149,7 +148,7 @@ class PointCloud():
     def create_spare_pc(self):
         """ create spare point cloud for plane voxels only
         """
-        n_max = (self.rng[0] + 1) * (self.rng[1] + 1) * (self.rng[2] + 1)
+        n_max = (self.rng[0] + 1) * (self.rng[1] + 1) * (self.rng[2] + 1) * self.ransac_n_plane
         xyz = np.zeros((n_max, 3))
         normal = np.zeros((n_max, 3)).astype(np.single)
         color = np.zeros((n_max, 3)).astype(np.single)
@@ -197,7 +196,7 @@ class PointCloud():
     def create_spare_pc_old(self):
         """ create spare point cloud for plane voxels only
         """
-        n_max = (self.rng[0] + 1) * (self.rng[1] + 1) * (self.rng[2] + 1)
+        n_max = (self.rng[0] + 1) * (self.rng[1] + 1) * (self.rng[2] + 1) * 4
         xyz = np.zeros((n_max, 3))
         normal = np.zeros((n_max, 3)).astype(np.single)
         n_voxel = 0
@@ -314,7 +313,9 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (json)')
     parser.add_argument('-d', '--debug', action="store_true",
-                        help='Save ascii point cloud for each planei and print plane data')
+                        help='Save ascii point cloud for each plane and print plane data')
+    parser.add_argument('-s', '--skip_spare', action="store_true",
+                        help='Do not generate spare cloud, only normals for the original')
     args = parser.parse_args()
     FNAME = args.name[0]
     # if json config given other parameters are ignored
@@ -331,6 +332,7 @@ if __name__ == "__main__":
             RATE = JDATA["rate"]
             NP = JDATA["n_plane"]
             OUT_DIR = JDATA["out_dir"]
+            SKIP_SPARE = JDATA["skip_spare"]
             DEBUG = JDATA["debug"]
     else:
         VOXEL = args.voxel_size
@@ -348,6 +350,7 @@ if __name__ == "__main__":
             ANG = args.angles
         NP = args.ransac_n
         OUT_DIR = args.out_dir
+        SKIP_SPARE = args.skip_spare
         DEBUG = args.debug
 
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
@@ -358,8 +361,12 @@ if __name__ == "__main__":
         print("Unable to load {}".format(FNAME))
         sys.exit()
     t1 = time.perf_counter()
-    # TODO skip spare creation, use original but normals should be created
-    PC.create_spare_pc()
+    if SKIP_SPARE:
+        # skip spare creation, use original but normals should be created
+        PC.spare_pc = PC.pc
+        PC.spare_pc.estimate_normals()
+    else:
+        PC.create_spare_pc()
     PC.spare_export()
     r, w, o = PC.segmentation()
     PC.segment_export(r, '_roof', '.pcd')

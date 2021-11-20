@@ -280,6 +280,8 @@ class PointCloud():
             :param fname: path to file
             :param typ: file type
         """
+        if len(inliers) == 0:
+            return
         if fname is None:
             fname = os.path.join(self.out_dir, os.path.basename(os.path.splitext(self.file_name)[0]) + segment + typ)
         else:

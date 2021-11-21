@@ -8,5 +8,6 @@
   "n_plane": 4,
   "out_dir": "./temp",
   "skip_spare": 0,
+  "roof_z": 3,
   "debug": 0
 }

@@ -38,7 +38,7 @@ class PointCloud():
     def __init__(self, file_name, voxel_size=0.5, ransac_limit=100,
                  ransac_threshold=0.025, ransac_n=10, ransac_iterations=100,
                  angle_limits=[0.087, 0.698], rate=[0.2, 0.45, 0.65, 0.8],
-                 ransac_n_plane=4, out_dir='.', debug=False):
+                 ransac_n_plane=4, roof_z=3.0, out_dir='.', debug=False):
         """ Initialize instance
         """
         self.file_name = file_name
@@ -50,6 +50,7 @@ class PointCloud():
         self.angle_limits = angle_limits
         self.rate = rate
         self.ransac_n_plane = ransac_n_plane
+        self.roof_z = roof_z
         self.out_dir = out_dir
         self.debug = debug
         self.pc = o3d.io.read_point_cloud(file_name)
@@ -125,7 +126,16 @@ class PointCloud():
                     if self.debug:
                         tmp = voxel.select_by_index(inliers)
                         pid = self.counter * 10 + i
-                        np.savetxt(os.path.join(self.out_dir, f'temp{pid}.txt'),
+                        angle = abs(self.voxel_angle(plane_model))
+                        if angle < self.angle_limits[0]:    # wall
+                            t = 'w'
+                        elif angle < self.angle_limits[1] or \
+                             voxel.points[0][2] < self.roof_z :  # other
+                            t = 'o'
+                        else:
+                            t = 'r'                         # roof
+
+                        np.savetxt(os.path.join(self.out_dir, f'temp{pid}_{t}.txt'),
                                    np.c_[np.asarray(tmp.points), np.full(m, pid)])
                     res.append([plane_model, m // 2])
                     # reduce pc to outliers
@@ -261,15 +271,17 @@ class PointCloud():
         wall = []
         other = []
         normals = np.asarray(self.spare_pc.normals)
+        points = np.asarray(self.spare_pc.points)
         for i in range(normals.shape[0]):
             # angle from horizontal
             angle = abs(self.voxel_angle(normals[i]))
-            if angle < self.angle_limits[0]:    # 0-5 degree
+            if angle < self.angle_limits[0]:    # near vertical (wall)
                 wall.append(i)
-            elif angle < self.angle_limits[1]:  # 5-40 degree
+            elif angle < self.angle_limits[1] or \
+                 points[i][2] < self.roof_z:    # other
                 other.append(i)
             else:
-                roof.append(i)                  # 40-90 degree
+                roof.append(i)                  # roof
         return roof, wall, other
 
     def segment_export(self, inliers, segment, typ='.ply', fname=None):
@@ -318,6 +330,8 @@ if __name__ == "__main__":
                         help='Save ascii point cloud for each plane and print plane data')
     parser.add_argument('-s', '--skip_spare', action="store_true",
                         help='Do not generate spare cloud, only normals for the original')
+    parser.add_argument('-z', '--roof_z', type=float, default=0.0,
+                        help='Minimal height for roof segment, use with nDSM only')
     args = parser.parse_args()
     FNAME = args.name[0]
     # if json config given other parameters are ignored
@@ -335,6 +349,7 @@ if __name__ == "__main__":
             NP = JDATA["n_plane"]
             OUT_DIR = JDATA["out_dir"]
             SKIP_SPARE = JDATA["skip_spare"]
+            ROOF_Z = JDATA["roof_z"]
             DEBUG = JDATA["debug"]
     else:
         VOXEL = args.voxel_size
@@ -353,12 +368,13 @@ if __name__ == "__main__":
         NP = args.ransac_n
         OUT_DIR = args.out_dir
         SKIP_SPARE = args.skip_spare
+        ROOF_Z = args.roof_z
         DEBUG = args.debug
 
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,
-                    angle_limits=ANG, ransac_n_plane=NP, out_dir=OUT_DIR,
-                    debug=DEBUG)
+                    angle_limits=ANG, ransac_n_plane=NP, roof_z=ROOF_Z, 
+                    out_dir=OUT_DIR, debug=DEBUG)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
         sys.exit()

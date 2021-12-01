@@ -8,9 +8,6 @@
 """
 #   TODO list
 #   colors lost in output?
-#   fast selection for empty/non-empty voxels, creating set from voxel indices?
-#   voxel.add((i, j, k))???
-#   paralel processing of voxels and segmentation of huge clouds
 
 import sys
 import math
@@ -18,8 +15,62 @@ import os.path
 import time
 import json
 import argparse
+from multiprocessing import Process, Queue, cpu_count
 import numpy as np
 import open3d as o3d
+
+def voxel_ransac(voxel, args, que):
+    """ fit planes to voxel for multiprocessing
+
+        :param voxel: voxel point cloud
+        :param args: parameters for ransac
+        :param que: queue for results
+    """
+    args.counter += 1
+    for i in range(args.ransac_n_plane):
+        n = np.asarray(voxel.points).shape[0]
+        if n > args.ransac_limit:
+            # fit ransac plane
+            plane_model, inliers = voxel.segment_plane(args.ransac_threshold,
+                                                       args.ransac_n,
+                                                       args.ransac_iterations)
+            m = len(inliers)    # number of inliers
+            if m / n > args.rate[i]:
+                tmp = voxel.select_by_index(inliers)
+                if args.debug:
+                    pid = args.counter * 10 + i
+                    angle = abs(args.voxel_angle(plane_model))
+                    if angle < args.angle_limits[0]:    # wall
+                        t = 'w'
+                    elif angle < args.angle_limits[1] or \
+                         voxel.points[0][2] < args.roof_z:  # other
+                        t = 'o'
+                    else:
+                        t = 'r'                         # roof
+
+                    np.savetxt(os.path.join(args.out_dir, f'temp{pid}_{t}.txt'),
+                               np.c_[np.asarray(tmp.points), np.full(m, pid)])
+                que.put((plane_model, np.asarray(tmp.points)[m // 2], np.asarray(tmp.colors)[m // 2]))
+                # reduce pc to outliers
+                voxel = voxel.select_by_index(inliers, invert=True)
+
+class MultiPar():
+    """ Collect necessary parameters for worker
+        
+        :param source: source class for paramters
+    """
+    def __init__(self, source, counter=0):
+
+        self.ransac_n_plane = source.ransac_n_plane
+        self.ransac_limit = source.ransac_limit
+        self.ransac_threshold = source.ransac_threshold
+        self.ransac_n = source.ransac_n
+        self.ransac_iterations = source.ransac_iterations
+        self.rate = source.rate
+        self.debug = source.debug
+        self.angle_limits = source.angle_limits
+        self.out_dir = source.out_dir
+        self.counter = counter
 
 class PointCloud():
     """
@@ -123,21 +174,21 @@ class PointCloud():
                 #                                             plane_model[2],
                 #                                             plane_model[3]))
                 if m / n > self.rate[i]:
+                    tmp = voxel.select_by_index(inliers)
                     if self.debug:
-                        tmp = voxel.select_by_index(inliers)
                         pid = self.counter * 10 + i
                         angle = abs(self.voxel_angle(plane_model))
                         if angle < self.angle_limits[0]:    # wall
                             t = 'w'
                         elif angle < self.angle_limits[1] or \
-                             voxel.points[0][2] < self.roof_z :  # other
+                             voxel.points[0][2] < self.roof_z:  # other
                             t = 'o'
                         else:
                             t = 'r'                         # roof
 
                         np.savetxt(os.path.join(self.out_dir, f'temp{pid}_{t}.txt'),
                                    np.c_[np.asarray(tmp.points), np.full(m, pid)])
-                    res.append([plane_model, m // 2])
+                    res.append([plane_model, np.asarray(tmp.points)[m // 2], np.asarray(tmp.colors)[m // 2]])
                     # reduce pc to outliers
                     voxel = voxel.select_by_index(inliers, invert=True)
                 else:
@@ -154,6 +205,84 @@ class PointCloud():
             :return: angle of normal direction from vertical in radians in 0-pi/2 range
         """
         return math.atan2(abs(plane[2]), math.hypot(plane[0], plane[1]))
+
+    def create_spare_pc_multi(self):
+        """ create spare point cloud for plane voxels only using multiprocessing
+        """
+        n_max = (self.rng[0] + 1) * (self.rng[1] + 1) * (self.rng[2] + 1) * self.ransac_n_plane
+        xyz = np.zeros((n_max, 3))
+        normal = np.zeros((n_max, 3)).astype(np.single)
+        color = np.zeros((n_max, 3)).astype(np.single)
+        p = np.array([0, 0, 0, 1], dtype=float)
+        n_voxel = 0
+        n_cpu = cpu_count() # number of cpu cores
+        # collect parameters for multi processing
+        args = MultiPar(self)
+        res = Queue()   # queue for results from multiprocessing
+        procs = []
+        for k in range(self.rng[2]+1):
+            z = self.pc_mi[2] + k * self.voxel_size
+            zbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(self.pc_mi[0], self.pc_mi[1], z),
+                                                       max_bound=(self.pc_ma[0], self.pc_ma[1], z + self.voxel_size))
+            zvoxels = self.pc.crop(zbox)
+            for i in range(self.rng[0]+1):
+                x = self.pc_mi[0] + i * self.voxel_size
+                zxbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, self.pc_mi[1], z),
+                                                            max_bound=(x + self.voxel_size, self.pc_ma[1], z + self.voxel_size))
+                zxvoxels = zvoxels.crop(zxbox)
+                for j in range(self.rng[1]+1):
+                    y = self.pc_mi[1] + j * self.voxel_size  # y
+                    bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, y, z),
+                                                               max_bound=(x+self.voxel_size, y+self.voxel_size, z+self.voxel_size))
+                    voxel = zxvoxels.crop(bbox)
+                    voxel_xyz = np.asarray(voxel.points)
+                    if voxel_xyz.shape[0] > self.ransac_limit:
+                        if len(procs) >= n_cpu:
+                            for proc in procs:
+                                proc.join()         # wait for processes
+                            while not res.empty():
+                                plane, pp, c = res.get()
+                                # x, y, z projected to the plane
+                                p[0:3] = pp
+                                t = np.dot(p, plane)    # point - plane distance
+                                xyz[n_voxel, 0] = p[0] - t * plane[0]
+                                xyz[n_voxel, 1] = p[1] - t * plane[1]
+                                xyz[n_voxel, 2] = p[2] - t * plane[2]
+                                normal[n_voxel] = plane[0:3]
+                                try:
+                                    color[n_voxel] = c
+                                except IndexError:
+                                    color[n_voxel] = np.array([1, 1, 1])
+                                n_voxel += 1
+                        else:
+                            pr = Process(target=voxel_ransac, args=(voxel, args, res))
+                            procs.append(pr)
+                            pr.start()
+        if len(procs) > 0:
+            for proc in procs:
+                proc.join()
+            while not res.empty():
+                plane, index = res.get()
+                # x, y, z projected to the plane
+                p[0:3] = voxel_xyz[index]
+                t = np.dot(p, plane)    # point - plane distance
+                xyz[n_voxel, 0] = p[0] - t * plane[0]
+                xyz[n_voxel, 1] = p[1] - t * plane[1]
+                xyz[n_voxel, 2] = p[2] - t * plane[2]
+                normal[n_voxel] = plane[0:3]
+                try:
+                    color[n_voxel] = np.asarray(voxel.colors)[index]
+                except IndexError:
+                    color[n_voxel] = np.array([1, 1, 1])
+                n_voxel += 1
+
+        xyz = np.resize(xyz, (n_voxel, 3))
+        normal = np.resize(normal, (n_voxel, 3))
+        color = np.resize(normal, (n_voxel, 3))
+        self.spare_pc = o3d.geometry.PointCloud()
+        self.spare_pc.points = o3d.utility.Vector3dVector(xyz)
+        self.spare_pc.normals = o3d.utility.Vector3dVector(normal)
+        self.spare_pc.colors = o3d.utility.Vector3dVector(color)
 
     def create_spare_pc(self):
         """ create spare point cloud for plane voxels only
@@ -182,16 +311,16 @@ class PointCloud():
                     voxel_xyz = np.asarray(voxel.points)
                     if voxel_xyz.shape[0] > self.ransac_limit:
                         res = self.voxel_ransac(voxel)
-                        for plane, index in res:
+                        for plane, pp, cc in res:
                             # x, y, z projected to the plane
-                            p[0:3] = voxel_xyz[index]
+                            p[0:3] = pp
                             t = np.dot(p, plane)    # point - plane distance
                             xyz[n_voxel, 0] = p[0] - t * plane[0]
                             xyz[n_voxel, 1] = p[1] - t * plane[1]
                             xyz[n_voxel, 2] = p[2] - t * plane[2]
                             normal[n_voxel] = plane[0:3]
                             try:
-                                color[n_voxel] = np.asarray(voxel.colors)[index]
+                                color[n_voxel] = cc
                             except IndexError:
                                 color[n_voxel] = np.array([1, 1, 1])
                             n_voxel += 1
@@ -328,6 +457,8 @@ if __name__ == "__main__":
                         help='Path to config file (json)')
     parser.add_argument('-d', '--debug', action="store_true",
                         help='Save ascii point cloud for each plane and print plane data')
+    parser.add_argument('-m', '--multi', action="store_true",
+                        help='Use multi processing')
     parser.add_argument('-s', '--skip_spare', action="store_true",
                         help='Do not generate spare cloud, only normals for the original')
     parser.add_argument('-z', '--roof_z', type=float, default=0.0,
@@ -350,6 +481,7 @@ if __name__ == "__main__":
             OUT_DIR = JDATA["out_dir"]
             SKIP_SPARE = JDATA["skip_spare"]
             ROOF_Z = JDATA["roof_z"]
+            MULTI = JDATA["multi"]
             DEBUG = JDATA["debug"]
     else:
         VOXEL = args.voxel_size
@@ -369,11 +501,12 @@ if __name__ == "__main__":
         OUT_DIR = args.out_dir
         SKIP_SPARE = args.skip_spare
         ROOF_Z = args.roof_z
+        MULTI = args.multi
         DEBUG = args.debug
 
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,
-                    angle_limits=ANG, ransac_n_plane=NP, roof_z=ROOF_Z, 
+                    angle_limits=ANG, ransac_n_plane=NP, roof_z=ROOF_Z,
                     out_dir=OUT_DIR, debug=DEBUG)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
@@ -384,7 +517,10 @@ if __name__ == "__main__":
         PC.spare_pc = PC.pc
         PC.spare_pc.estimate_normals()
     else:
-        PC.create_spare_pc()
+        if MULTI:
+            PC.create_spare_pc_multi()
+        else:
+            PC.create_spare_pc()
     PC.spare_export()
     r, w, o = PC.segmentation()
     PC.segment_export(r, '_roof', '.pcd')

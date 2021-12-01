@@ -9,5 +9,6 @@
   "out_dir": "./temp",
   "skip_spare": 0,
   "roof_z": 3,
+  "multi": 1,
   "debug": 0
 }

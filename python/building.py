@@ -221,26 +221,29 @@ class PointCloud():
         res = Queue()   # queue for results from multiprocessing
         procs = []
         for k in range(self.rng[2]+1):
+            # select voxels in the same elevation
             z = self.pc_mi[2] + k * self.voxel_size
             zbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(self.pc_mi[0], self.pc_mi[1], z),
                                                        max_bound=(self.pc_ma[0], self.pc_ma[1], z + self.voxel_size))
             zvoxels = self.pc.crop(zbox)
             for i in range(self.rng[0]+1):
+                # select voxels paralel to x
                 x = self.pc_mi[0] + i * self.voxel_size
                 zxbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, self.pc_mi[1], z),
                                                             max_bound=(x + self.voxel_size, self.pc_ma[1], z + self.voxel_size))
                 zxvoxels = zvoxels.crop(zxbox)
                 for j in range(self.rng[1]+1):
+                    # select single voxel
                     y = self.pc_mi[1] + j * self.voxel_size  # y
                     bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(x, y, z),
                                                                max_bound=(x+self.voxel_size, y+self.voxel_size, z+self.voxel_size))
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
-                    if voxel_xyz.shape[0] > self.ransac_limit:
-                        if len(procs) >= n_cpu:
+                    if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
+                        if len(procs) >= n_cpu:     # all available cores used?
                             for proc in procs:
                                 proc.join()         # wait for processes
-                            while not res.empty():
+                            while not res.empty():  # get results from queue
                                 plane, pp, c = res.get()
                                 # x, y, z projected to the plane
                                 p[0:3] = pp
@@ -250,15 +253,16 @@ class PointCloud():
                                 xyz[n_voxel, 2] = p[2] - t * plane[2]
                                 normal[n_voxel] = plane[0:3]
                                 try:
-                                    color[n_voxel] = c
+                                    color[n_voxel] = c  # TODO
                                 except IndexError:
                                     color[n_voxel] = np.array([1, 1, 1])
                                 n_voxel += 1
                         else:
+                            # start paralel process
                             pr = Process(target=voxel_ransac, args=(voxel, args, res))
                             procs.append(pr)
                             pr.start()
-        if len(procs) > 0:
+        if len(procs) > 0:          # are there process running yet?
             for proc in procs:
                 proc.join()
             while not res.empty():
@@ -276,10 +280,10 @@ class PointCloud():
                     color[n_voxel] = np.array([1, 1, 1])
                 n_voxel += 1
 
-        xyz = np.resize(xyz, (n_voxel, 3))
+        xyz = np.resize(xyz, (n_voxel, 3))              # free unused memory
         normal = np.resize(normal, (n_voxel, 3))
         color = np.resize(normal, (n_voxel, 3))
-        self.spare_pc = o3d.geometry.PointCloud()
+        self.spare_pc = o3d.geometry.PointCloud()       # create new point cloud for spare point cloud
         self.spare_pc.points = o3d.utility.Vector3dVector(xyz)
         self.spare_pc.normals = o3d.utility.Vector3dVector(normal)
         self.spare_pc.colors = o3d.utility.Vector3dVector(color)
@@ -443,7 +447,7 @@ if __name__ == "__main__":
                         help='Threshold distance to RANSAC plane')
     parser.add_argument('-l', '--limit', type=int, default=25,
                         help='Minimal number of points for ransac')
-    parser.add_argument('-n', '--ransac_n', type=int, default=5,
+    parser.add_argument('-n', '--ransac_n', type=int, default=3,
                         help='Number of random points for ransac plane')
     parser.add_argument('-i', '--iterations', type=int, default=20,
                         help='Number of iterations for ransac plane')
@@ -484,6 +488,7 @@ if __name__ == "__main__":
             MULTI = JDATA["multi"]
             DEBUG = JDATA["debug"]
     else:
+        # command line parameters
         VOXEL = args.voxel_size
         THRES = args.threshold
         LIM = args.limit

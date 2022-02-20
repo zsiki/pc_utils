@@ -27,19 +27,19 @@ with open(JNAME) as jfile:
     JDATA = json.load(jfile)
     if "voxel_downsample" in JDATA:
         VOXEL_DOWNSAMPLE = JDATA["voxel_downsample"]
-        if VOXEL_DOWNSAMPLE > 0:
+        if VOXEL_DOWNSAMPLE >= 0:
             if "voxel_size" in JDATA:
                 VOXEL_SIZE = JDATA["voxel_size"]
     if "statistical_outliers" in JDATA:
         STATISTICAL_OUTLIERS = JDATA["statistical_outliers"]
-        if STATISTICAL_OUTLIERS > 0:
+        if STATISTICAL_OUTLIERS >= 0:
             if "nb_neighbors" in JDATA:
                 NB_NEIGHBORS = JDATA["nb_neighbors"]
             if "std_ratio" in JDATA:
                 STD_RATIO = JDATA["std_ratio"]
     if "radius_outliers" in JDATA:
         RADIUS_OUTLIERS = JDATA["radius_outliers"]
-        if RADIUS_OUTLIERS > 0:
+        if RADIUS_OUTLIERS >= 0:
             if "nb_points" in JDATA:
                 NB_POINTS = JDATA["nb_points"]
             if "radius" in JDATA:

@@ -1,25 +1,23 @@
 # Python utilities
 
+Processing steps to find building footprints in point clouds
+
+#. Outliers handling, filtering by *pc_filter.py*
+#. Separate ground and non-ground point and DEM generation from ground points *pc2dem-py*
+#. Creating nDSM with low vegetation removed *pc2ndsm.py*
+#. Generatating spare print cloud using voxels, only significant planes are preserved with a point in the in the voxel and normal
+#. segment spare point cloud int o wall, roof and other points
+#. group wall and roof point with region enlarging
+#. ...
+
 ## Open3D
 
 ### pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
-in a json configuration file.
-
-sample json configuration:
-
-```json
-{ "statistical_outliers": "False",
-  "nb_neighbors": 20,
-  "std_ratio": 2.0,
-  "radius_outliers": "True",
-  "nb_points": 16,
-  "radius": 0.25
-  "voxel_downsample": "False",
-  "voxel_size": 0.05,
-}
-```
+in a json configuration file. An ordinal number is assigned to the method 
+name (statistical_outliers, radius_outliers, voxel_downsample) if it is larger 
+or equal to zero the method is applied.
 
 Usage:
 
@@ -63,6 +61,30 @@ Sample json parameter file
 The above sample first applies statistical outliers filter (0), then radius
 outliers filter (1) and finally voxel downsample (2). If the value is less than
 zero for the filter or the filter is not in the parameter file, it is not used.
+
+### pc2dem.py
+
+Separate ground and non-ground points using cloth filter simulation. 
+Save non-ground point and a DEM generated from ground points.
+
+usage: pc2dem.py [-h] [-r RESOLUTION] [-o OUTPUT] [--rigidness RIGIDNESS]
+                 [--smooth] [--iterations ITERATIONS]
+                 file_name
+
+positional arguments:
+  file_name             point cloud to process
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r RESOLUTION, --resolution RESOLUTION
+                        resolution for dem
+  -o OUTPUT, --output OUTPUT
+                        output DEM file (TIF) and non-ground points
+  --rigidness RIGIDNESS
+                        rigidness of cloth 1 or 2 or 3
+  --smooth              postprocess to smooth
+  --iterations ITERATIONS
+                        number of iterations
 
 ### pc2ndsm.py
 

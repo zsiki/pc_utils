@@ -67,6 +67,7 @@ zero for the filter or the filter is not in the parameter file, it is not used.
 Separate ground and non-ground points using cloth filter simulation. 
 Save non-ground point and a DEM generated from ground points.
 
+```
 usage: pc2dem.py [-h] [-r RESOLUTION] [-o OUTPUT] [--rigidness RIGIDNESS]
                  [--smooth] [--iterations ITERATIONS]
                  file_name
@@ -85,11 +86,12 @@ optional arguments:
   --smooth              postprocess to smooth
   --iterations ITERATIONS
                         number of iterations
+```
 
 ### pc2ndsm.py
 
 Point cloud to normalized Digital Surface Model (nDSM). The height differencess
-are calculated from a DTM (any gdal compatible DTM can be used). The low
+are calculated from a DTM (any GDAL compatible DTM can be used). The low
 vegetation and terrain can also be filtered adding a minimum elevation for the
 nDSM.
 
@@ -97,6 +99,47 @@ Usage:
 
 ```
 ./pc2ndsm.py dem_file point_cloud min_elev
+```
+
+### pc2mesh.py
+
+Using the *pc2dem.py* result (separeted ground points) create a .PLY format mesh,
+which can be considered as a DTM.
+
+```
+usage: pc2mesh.py [-h] [-r RESOLUTION] [-d DEBUG] [-o OUTPUT] file_name
+
+positional arguments:
+  file_name             point cloud of the ground (.PLY)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r RESOLUTION, --resolution RESOLUTION
+                        resolution of the GRID
+  -d DEBUG, --debug DEBUG
+                        to switch debug mode use: 1
+  -o OUTPUT, --output OUTPUT
+                        filename of the output mesh (.PLY)
+```
+
+### pcmesh2ndsm.py
+ 
+ Create a normalized Digital Surface Model (nDSM) using the mesh of the
+ ground points (DTM) and the off-ground points.  
+ 
+``` 
+usage: pcmesh2ndsm.py [-h] [-d DEBUG] [-o OUTPUT] pc_file_name mesh_file_name
+
+positional arguments:
+  pc_file_name          point cloud of the non-ground (.PLY)
+  mesh_file_name        mesh of the ground (.PLY)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d DEBUG, --debug DEBUG
+                        to switch debug mode use: 1
+  -o OUTPUT, --output OUTPUT
+                        output normalized point cloud filename (.PLY)
 ```
 
 ### building.py

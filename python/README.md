@@ -214,3 +214,27 @@ sample json configuration:
 Angle limits means deflection from vertical 0 - limit1 is wall limit1 - limit2 is other
 limit2 to pi/2 roof. Angles are in radians. Rates vector is used if more than one RANSAC planes are searched in a voxel and this values are the precentes of points on a
 plane to accept.
+
+
+### dbscan_clustering.py
+
+The scripts using a Machine Learning (ML) based algorithm, the DBSCAN clustering to separete group of points in a point cloud.
+During the usage the distance to neighbors in a cluster (eps) and the minimum number of points required to form a cluster (min_points) have to be defined.
+
+```
+usage: dbscan_clsutering.py file_name -e 0.15 -m 50 -f folder
+
+positional arguments:
+  pc_file_name          point cloud of the segmented points (.PLY)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -e EPS, --eps EPS     distance to neighbors in a cluster
+  -m MIN_POINTS, --min_points MIN_POINTS
+                        minimum number of points required to form a cluster
+  -f FOLDER, --folder FOLDER
+                        output folder
+  -d DEBUG, --debug DEBUG
+                        to switch debug mode (displaying the results) use: 1
+                        
+   ```                     

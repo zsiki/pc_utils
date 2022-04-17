@@ -1,18 +1,16 @@
 # Python utilities
 
-Processing steps to find building footprints in point clouds
+Processing steps to find building footprints in point clouds. These small utilities use open3d, gdal, numpy.
 
-#. Outliers handling, filtering by *pc_filter.py*
-#. Separate ground and non-ground point and DEM generation from ground points *pc2dem-py*
-#. Creating nDSM with low vegetation removed *pc2ndsm.py*
-#. Generatating spare print cloud using voxels, only significant planes are preserved with a point in the in the voxel and normal
-#. segment spare point cloud int o wall, roof and other points
-#. group wall and roof point with region enlarging
-#. ...
+1. Outliers handling, filtering by *pc_filter.py*
+2. Separate ground and non-ground point and DEM generation from ground points *pc2dem.py*
+3. Creating nDSM with low vegetation removed *pc2ndsm.py*
+4. Generatating spare point cloud using voxels, only significant planes are preserved with a point in the in the voxel and normal
+5. segment spare point cloud int o wall, roof and other points
+6. group wall and roof point with region enlarging
+7. ...
 
-## Open3D
-
-### pc_filter.py
+## pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
 in a json configuration file. An ordinal number is assigned to the method 
@@ -62,7 +60,7 @@ The above sample first applies statistical outliers filter (0), then radius
 outliers filter (1) and finally voxel downsample (2). If the value is less than
 zero for the filter or the filter is not in the parameter file, it is not used.
 
-### pc2dem.py
+## pc2dem.py
 
 Separate ground and non-ground points using cloth filter simulation. 
 Save non-ground point and a DEM generated from ground points.

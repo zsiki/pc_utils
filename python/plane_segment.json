@@ -1,0 +1,12 @@
+{ "voxel_size": 2,
+  "threshold" : 0.05,
+  "limit": 100,
+  "n": 3,
+  "iteration": 25,
+  "angle_limits": [0.087, 0.698],
+  "rate": [0.20, 0.45, 0.65, 0.8],
+  "n_plane": 4,
+  "out_dir": "./temp",
+  "roof_z": 2.5,
+  "multi": 0
+}

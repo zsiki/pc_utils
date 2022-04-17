@@ -41,14 +41,14 @@ def voxel_segment_multi(voxel, args, que):
             if m / n > args.rate[i]:
                 tmp = voxel.select_by_index(inliers)
                 angle = abs(voxel_angle(plane_model))
+                xyz = np.asarray(tmp.points)
                 print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 if angle < args.angle_limits[0]:    # wall
-                    que.put(('w', np.asarray(tmp.points)))
-                elif angle < args.angle_limits[1] or \
-                     voxel.points[0][2] < args.roof_z:  # other
+                    que.put(('w', xyz))
+                elif angle < args.angle_limits[1]:  # other
                     pass
-                else:                               # roof
-                    que.put(('r', np.asarray(tmp.points)))
+                elif np.max(xyz[:, 2]) > args.roof_z:   # roof
+                    que.put(('r', xyz))
 
                 # reduce pc to outliers
                 voxel = voxel.select_by_index(inliers, invert=True)
@@ -63,6 +63,9 @@ def voxel_segment(voxel, args):
         :param que: queue for results
     """
     res = []
+    a = np.mean(np.asarray(voxel.points), axis=0)
+    if 4.5 < a[0] < 5.5 and 0 < a[1] < 1.5:
+        print(a)
     for i in range(args.ransac_n_plane):
         n = np.asarray(voxel.points).shape[0]
         if n > args.ransac_limit:
@@ -74,14 +77,14 @@ def voxel_segment(voxel, args):
             if m / n > args.rate[i]:
                 tmp = voxel.select_by_index(inliers)
                 angle = abs(voxel_angle(plane_model))
+                xyz = np.asarray(tmp.points)
                 if angle < args.angle_limits[0]:    # wall
-                    res.append(['w', np.asarray(tmp.points)])
+                    res.append(['w', xyz])
                     print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
-                elif angle < args.angle_limits[1] or \
-                     voxel.points[0][2] < args.roof_z:  # other
+                elif angle < args.angle_limits[1]:  # other
                     pass
-                else:                               # roof
-                    res.append(['r', np.asarray(tmp.points)])
+                elif np.max(xyz[:, 2]) > args.roof_z:   # roof
+                    res.append(['r', xyz])
                     print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
 
                 # reduce pc to outliers

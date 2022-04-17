@@ -19,6 +19,14 @@ from multiprocessing import Process, Queue, cpu_count
 import numpy as np
 import open3d as o3d
 
+def voxel_angle(plane):
+    """ calculate angle of normal to the vertical direction
+
+        :param plane: vector of plane equation coefficients
+        :return: angle of normal direction from vertical in radians in 0-pi/2 range
+    """
+    return math.atan2(abs(plane[2]), math.hypot(plane[0], plane[1]))
+
 def voxel_ransac(voxel, args, que):
     """ fit planes to voxel for multiprocessing
 
@@ -39,7 +47,7 @@ def voxel_ransac(voxel, args, que):
                 tmp = voxel.select_by_index(inliers)
                 if args.debug:
                     pid = args.counter * 10 + i
-                    angle = abs(args.voxel_angle(plane_model))
+                    angle = abs(voxel_angle(plane_model))
                     if angle < args.angle_limits[0]:    # wall
                         t = 'w'
                     elif angle < args.angle_limits[1] or \
@@ -53,6 +61,8 @@ def voxel_ransac(voxel, args, que):
                 que.put((plane_model, np.asarray(tmp.points)[m // 2], np.asarray(tmp.colors)[m // 2]))
                 # reduce pc to outliers
                 voxel = voxel.select_by_index(inliers, invert=True)
+        else:
+            break
 
 class MultiPar():
     """ Collect necessary parameters for worker
@@ -177,7 +187,7 @@ class PointCloud():
                     tmp = voxel.select_by_index(inliers)
                     if self.debug:
                         pid = self.counter * 10 + i
-                        angle = abs(self.voxel_angle(plane_model))
+                        angle = abs(voxel_angle(plane_model))
                         if angle < self.angle_limits[0]:    # wall
                             t = 'w'
                         elif angle < self.angle_limits[1] or \
@@ -196,15 +206,6 @@ class PointCloud():
             else:
                 return res
         return res
-
-    @staticmethod
-    def voxel_angle(plane):
-        """ calculate angle of normal to the vertical direction
-
-            :param plane: vector of plane equation coefficients
-            :return: angle of normal direction from vertical in radians in 0-pi/2 range
-        """
-        return math.atan2(abs(plane[2]), math.hypot(plane[0], plane[1]))
 
     def create_spare_pc_multi(self):
         """ create spare point cloud for plane voxels only using multiprocessing
@@ -243,6 +244,7 @@ class PointCloud():
                         if len(procs) >= n_cpu:     # all available cores used?
                             for proc in procs:
                                 proc.join()         # wait for processes
+                            procs = []
                             while not res.empty():  # get results from queue
                                 plane, pp, c = res.get()
                                 # x, y, z projected to the plane
@@ -407,7 +409,7 @@ class PointCloud():
         points = np.asarray(self.spare_pc.points)
         for i in range(normals.shape[0]):
             # angle from horizontal
-            angle = abs(self.voxel_angle(normals[i]))
+            angle = abs(voxel_angle(normals[i]))
             if angle < self.angle_limits[0]:    # near vertical (wall)
                 wall.append(i)
             elif angle < self.angle_limits[1] or \

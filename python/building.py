@@ -48,16 +48,17 @@ def voxel_ransac(voxel, args, que):
                 if args.debug:
                     pid = args.counter * 10 + i
                     angle = abs(voxel_angle(plane_model))
+                    xyz = np.asarray(tmp.points)
                     if angle < args.angle_limits[0]:    # wall
                         t = 'w'
                     elif angle < args.angle_limits[1] or \
-                         voxel.points[0][2] < args.roof_z:  # other
+                         np.max(xyz[:, 2]) < args.roof_z:  # other
                         t = 'o'
                     else:
                         t = 'r'                         # roof
 
                     np.savetxt(os.path.join(args.out_dir, f'temp{pid}_{t}.txt'),
-                               np.c_[np.asarray(tmp.points), np.full(m, pid)])
+                               np.c_[xyz, np.full(m, pid)])
                 que.put((plane_model, np.asarray(tmp.points)[m // 2], np.asarray(tmp.colors)[m // 2]))
                 # reduce pc to outliers
                 voxel = voxel.select_by_index(inliers, invert=True)
@@ -66,7 +67,7 @@ def voxel_ransac(voxel, args, que):
 
 class MultiPar():
     """ Collect necessary parameters for worker
-        
+
         :param source: source class for paramters
     """
     def __init__(self, source, counter=0):
@@ -188,17 +189,19 @@ class PointCloud():
                     if self.debug:
                         pid = self.counter * 10 + i
                         angle = abs(voxel_angle(plane_model))
+                        xyz = np.asarray(tmp.points)
                         if angle < self.angle_limits[0]:    # wall
                             t = 'w'
                         elif angle < self.angle_limits[1] or \
-                             voxel.points[0][2] < self.roof_z:  # other
+                                np.max(xyz[:, 2]) < self.roof_z:  # other
                             t = 'o'
                         else:
                             t = 'r'                         # roof
 
-                        np.savetxt(os.path.join(self.out_dir, f'temp{pid}_{t}.txt'),
-                                   np.c_[np.asarray(tmp.points), np.full(m, pid)])
-                    res.append([plane_model, np.asarray(tmp.points)[m // 2], np.asarray(tmp.colors)[m // 2]])
+                        np.savetxt(os.path.join(self.out_dir,
+                                                f'temp{pid}_{t}.txt'),
+                                   np.c_[xyz, np.full(m, pid)])
+                    res.append([plane_model, xyz[m // 2], np.asarray(tmp.colors)[m // 2]])
                     # reduce pc to outliers
                     voxel = voxel.select_by_index(inliers, invert=True)
                 else:

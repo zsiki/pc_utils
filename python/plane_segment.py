@@ -45,9 +45,10 @@ def voxel_segment_multi(voxel, args, que):
                 print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 if angle < args.angle_limits[0]:    # wall
                     que.put(('w', xyz))
-                elif angle < args.angle_limits[1]:  # other
+                elif angle < args.angle_limits[1] or \
+                     np.max(xyz[:, 2]) < args.roof_z:   # other
                     pass
-                elif np.max(xyz[:, 2]) > args.roof_z:   # roof
+                else:   # roof
                     que.put(('r', xyz))
 
                 # reduce pc to outliers
@@ -81,9 +82,10 @@ def voxel_segment(voxel, args):
                 if angle < args.angle_limits[0]:    # wall
                     res.append(['w', xyz])
                     print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
-                elif angle < args.angle_limits[1]:  # other
+                elif angle < args.angle_limits[1] or \
+                     np.max(xyz[:, 2]) < args.roof_z: # other
                     pass
-                elif np.max(xyz[:, 2]) > args.roof_z:   # roof
+                else:   # roof
                     res.append(['r', xyz])
                     print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
 

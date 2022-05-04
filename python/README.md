@@ -236,3 +236,25 @@ optional arguments:
                         to switch debug mode (displaying the results) use: 1
                         
    ```                     
+### clusters2buildings.py 
+
+The script using the dbscan_clustering.py result folder to segment wall points.
+The roof clusters are used to create scaled bounding polygons.
+With the polygons the wall points are cropped, segmented and saved by buildings.  
+
+   ``` 
+Usage:
+positional arguments:
+  pc_file_name          point cloud of the wall points (.PLY)
+optional arguments:
+  -h, --help            show this help message and exit
+  -f FOLDER, --folder FOLDER
+                        folder that contains the DBSCAN roof clusters
+  -fr FOLDER_RES, --folder_res FOLDER_RES
+                        folder to save buildings
+  -a AREA, --area AREA  minimum base area to from a building segment
+  -s SCALE, --scale SCALE
+                        scaling the roofs area to crop wall points
+  -d DEBUG, --debug DEBUG
+                        to switch debug mode (displaying the results) use: 1
+   ``` 

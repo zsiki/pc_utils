@@ -257,8 +257,9 @@ class PointCloud():
                                                                max_bound=(x+self.voxel_size, y+self.voxel_size, z+self.voxel_size))
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
-                    if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
+                    if voxel_xyz.shape[0] > 0:
                         print(k, i, j, voxel_xyz.shape)
+                    if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
                         l_parts = voxel_segment(voxel, args)
                         for l in l_parts:
                             if l[0] == 'w':
@@ -306,19 +307,23 @@ if __name__ == "__main__":
     # if json config given other parameters are ignored
     if args.config is not None:
         JNAME = args.config
-        with open(JNAME) as jfile:
-            JDATA = json.load(jfile)
-            VOXEL = JDATA["voxel_size"]
-            THRES = JDATA["threshold"]
-            LIM = JDATA["limit"]
-            N = JDATA["n"]
-            ITERATION = JDATA["iteration"]
-            ANG = JDATA["angle_limits"]
-            RATE = JDATA["rate"]
-            NP = JDATA["n_plane"]
-            OUT_DIR = JDATA["out_dir"]
-            ROOF_Z = JDATA["roof_z"]
-            MULTI = JDATA["multi"]
+        try:
+            with open(JNAME) as jfile:
+                JDATA = json.load(jfile)
+                VOXEL = JDATA["voxel_size"]
+                THRES = JDATA["threshold"]
+                LIM = JDATA["limit"]
+                N = JDATA["n"]
+                ITERATION = JDATA["iteration"]
+                ANG = JDATA["angle_limits"]
+                RATE = JDATA["rate"]
+                NP = JDATA["n_plane"]
+                OUT_DIR = JDATA["out_dir"]
+                ROOF_Z = JDATA["roof_z"]
+                MULTI = JDATA["multi"]
+        except:
+            print(f'File not found or invalid {JNAME}')
+            sys.exit(2)
     else:
         # command line parameters
         VOXEL = args.voxel_size
@@ -339,12 +344,13 @@ if __name__ == "__main__":
         ROOF_Z = args.roof_z
         MULTI = args.multi
 
+    base_name = os.path.splitext(os.path.basename(FNAME))[0]
     PC = PointCloud(FNAME, voxel_size=VOXEL, ransac_threshold=THRES,
                     ransac_limit=LIM, ransac_n=N, rate=RATE,
                     angle_limits=ANG, ransac_n_plane=NP, roof_z=ROOF_Z)
     if PC.pc_mi is None:
         print("Unable to load {}".format(FNAME))
-        sys.exit()
+        sys.exit(1)
     t1 = time.perf_counter()
     if MULTI:
         w, r = PC.segment_pc_multi()
@@ -354,13 +360,13 @@ if __name__ == "__main__":
     if w is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(w)       # walls
-        fname = os.path.join(OUT_DIR, 'wall.pcd')
+        fname = os.path.join(OUT_DIR, base_name + '_wall.pcd')
         o3d.io.write_point_cloud(fname, pc)
         n_w = w.shape[0]
     if r is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(r)       # roofs
-        fname = os.path.join(OUT_DIR, 'roof.pcd')
+        fname = os.path.join(OUT_DIR, base_name + '_roof.pcd')
         o3d.io.write_point_cloud(fname, pc)
         n_r = r.shape[0]
     t2 = time.perf_counter()

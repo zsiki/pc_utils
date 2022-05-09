@@ -83,18 +83,20 @@ for cluster in clusters:
     # Get row indexes for samples with this cluster
     row_ix = np.where(labels == cluster)
 
-    # Create scatter of these samples
-    plt.scatter(xyz[row_ix, 0], xyz[row_ix, 1], label=str(cluster)+' cluster')
-
     # Export the clusters as a point cloud
     xyz_cluster = xyz[row_ix]
     pc_cluster = o3d.geometry.PointCloud()
     pc_cluster.points = o3d.utility.Vector3dVector(xyz_cluster)
     if cluster >= 0:
-        o3d.io.write_point_cloud(new_folder+'/cluster_' + str(cluster) +
-                                 '.ply', pc_cluster) # export .ply format
+        if not o3d.io.write_point_cloud(os.path.join(new_folder, f'cluster_{str(cluster)}.ply'), pc_cluster):  # export .ply format
+            print('Failed to save cluster {cluster}')
     else:
-        o3d.io.write_point_cloud(new_folder+'/noise.ply', pc_cluster) # export noise
+        if not o3d.io.write_point_cloud(os.path.join(new_folder, 'noise.ply'), pc_cluster): # export noise
+            print('Failed to save cluster {cluster}')
+
+    # Create scatter of these samples
+    if debug == 1:
+        plt.scatter(xyz_cluster[0], xyz_cluster[1], label=str(cluster)+' cluster')
 
 # Debug switch to display the results in a 3D viewer
 if debug == 1:

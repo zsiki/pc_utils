@@ -10,6 +10,12 @@ Processing steps to find building footprints in point clouds. These small utilit
 6. group wall and roof point with region enlarging
 7. ...
 
+## Flowchart of processing:
+
+![image](https://user-images.githubusercontent.com/48557905/167934260-c4d37565-fd11-4745-bf47-738d2986636f.png)
+
+# Data preprocessing
+
 ## pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
@@ -99,6 +105,38 @@ Usage:
 ./pc2ndsm.py dem_file point_cloud min_elev
 ```
 
+## Alternative way of the pre-processing with CloudCompare
+
+![](https://github.com/zsiki/pc_utils/blob/main/python/images/pre_procc_alt.png)
+
+### pc_csf.py
+
+Classify input point cloud into ground and non-ground points with Cloth Simulation Filter (CSF).
+The result are saved into .PLY format.
+
+```
+usage: pc_csf.py [-h] [-r RESOLUTION] [-o OUTPUT] [--rigidness RIGIDNESS] [--smooth]
+       [--iterations ITERATIONS] [--classification CLASSIFICATION] file_name
+
+positional arguments:
+  file_name             point cloud to process
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r RESOLUTION, --resolution RESOLUTION
+                        resolution for CSF
+  -o OUTPUT, --output OUTPUT
+                        output base name for ground and non-ground points
+  --rigidness RIGIDNESS
+                        rigidness of cloth 1,2,3: mountain with desen vegetation(1) OR complex scenes(2)
+                        OR flat terrain with high-rise buildings(3)
+  --smooth              postprocess to smooth
+  --iterations ITERATIONS
+                        number of iterations
+  --classification CLASSIFICATION
+                        classification threshold
+```
+
 ### pc2mesh.py
 
 Using the *pc2dem.py* result (separeted ground points) create a .PLY format mesh,
@@ -140,7 +178,7 @@ optional arguments:
                         output normalized point cloud filename (.PLY)
 ```
 
-### building.py
+### plane_segment.py
 
 Find building footprints in a point cloud using a divide and conquer algorithm.
 First the points are divided into voxels. For points in each voxel one or more

@@ -14,9 +14,9 @@ Processing steps to find building footprints in point clouds. These small utilit
 
 ![image](https://user-images.githubusercontent.com/48557905/167934260-c4d37565-fd11-4745-bf47-738d2986636f.png)
 
-# Data preprocessing
+## Data pre-processing
 
-## pc_filter.py
+### pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
 in a json configuration file. An ordinal number is assigned to the method 
@@ -66,7 +66,7 @@ The above sample first applies statistical outliers filter (0), then radius
 outliers filter (1) and finally voxel downsample (2). If the value is less than
 zero for the filter or the filter is not in the parameter file, it is not used.
 
-## pc2dem.py
+### pc2dem.py
 
 Separate ground and non-ground points using cloth filter simulation. 
 Save non-ground point and a DEM generated from ground points.
@@ -177,6 +177,8 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         output normalized point cloud filename (.PLY)
 ```
+
+## Data segmentation
 
 ### plane_segment.py
 

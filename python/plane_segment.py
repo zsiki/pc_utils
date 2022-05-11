@@ -360,13 +360,13 @@ if __name__ == "__main__":
     if w is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(w)       # walls
-        fname = os.path.join(OUT_DIR, base_name + '_wall.pcd')
+        fname = os.path.join(OUT_DIR, base_name + '_wall.ply')
         o3d.io.write_point_cloud(fname, pc)
         n_w = w.shape[0]
     if r is not None:
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(r)       # roofs
-        fname = os.path.join(OUT_DIR, base_name + '_roof.pcd')
+        fname = os.path.join(OUT_DIR, base_name + '_roof.ply')
         o3d.io.write_point_cloud(fname, pc)
         n_r = r.shape[0]
     t2 = time.perf_counter()

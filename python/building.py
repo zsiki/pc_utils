@@ -186,10 +186,10 @@ class PointCloud():
                 #                                             plane_model[3]))
                 if m / n > self.rate[i]:
                     tmp = voxel.select_by_index(inliers)
+                    xyz = np.asarray(tmp.points)
                     if self.debug:
                         pid = self.counter * 10 + i
                         angle = abs(voxel_angle(plane_model))
-                        xyz = np.asarray(tmp.points)
                         if angle < self.angle_limits[0]:    # wall
                             t = 'w'
                         elif angle < self.angle_limits[1] or \

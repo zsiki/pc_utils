@@ -11,7 +11,13 @@ Processing steps to find building footprints in point clouds. These small utilit
 7. segment wall points by the roof polygons
 8. find 2D concave hull of wall segments
 
-## pc_filter.py
+## Flowchart of processing:
+
+![image](https://user-images.githubusercontent.com/48557905/167934260-c4d37565-fd11-4745-bf47-738d2986636f.png)
+
+## Data pre-processing
+
+### pc_filter.py
 
 Downsample and noise reduction of point cloud. The parameters can be given
 in a json configuration file or in the command line. An ordinal number is
@@ -62,7 +68,7 @@ The above sample first applies statistical outliers filter (0), then radius
 outliers filter (1) and finally voxel downsample (2). If the value is less than
 zero for the filter or the filter is not in the parameter file, it is not used.
 
-## pc2dem.py
+### pc2dem.py
 
 Separate ground and non-ground points using cloth filter simulation. (CSF) 
 Save non-ground points and a DEM generated from ground points using GDAL.
@@ -99,6 +105,38 @@ Usage:
 
 ```
 ./pc2ndsm.py dem_file point_cloud min_elev
+```
+
+## Alternative way of the pre-processing with CloudCompare
+
+![](https://github.com/zsiki/pc_utils/blob/main/python/images/pre_procc_alt.png)
+
+### pc_csf.py
+
+Classify input point cloud into ground and non-ground points with Cloth Simulation Filter (CSF).
+The result are saved into .PLY format.
+
+```
+usage: pc_csf.py [-h] [-r RESOLUTION] [-o OUTPUT] [--rigidness RIGIDNESS] [--smooth]
+       [--iterations ITERATIONS] [--classification CLASSIFICATION] file_name
+
+positional arguments:
+  file_name             point cloud to process
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r RESOLUTION, --resolution RESOLUTION
+                        resolution for CSF
+  -o OUTPUT, --output OUTPUT
+                        output base name for ground and non-ground points
+  --rigidness RIGIDNESS
+                        rigidness of cloth 1,2,3: mountain with desen vegetation(1) OR complex scenes(2)
+                        OR flat terrain with high-rise buildings(3)
+  --smooth              postprocess to smooth
+  --iterations ITERATIONS
+                        number of iterations
+  --classification CLASSIFICATION
+                        classification threshold
 ```
 
 ### pc2mesh.py
@@ -142,7 +180,9 @@ optional arguments:
                         output normalized point cloud filename (.PLY)
 ```
 
-### building.py
+## Data segmentation
+
+### plane_segment.py
 
 Find building footprints in a point cloud using a divide and conquer algorithm.
 First the points are divided into voxels. For points in each voxel one or more

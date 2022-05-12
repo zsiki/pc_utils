@@ -23,6 +23,7 @@ optional arguments:
 
 '''
 
+import sys
 import os
 import shutil
 import argparse
@@ -77,7 +78,10 @@ labels = np.array(pcd.cluster_dbscan(eps, min_points))
 # Add clusters for loop
 clusters = np.unique(labels)
 
-# Save clusters into point clouds TODO: condition aon the min. number of points
+if len(clusters) == 0:
+    print('No roof clusters found')
+    sys.exit(1)
+# Save clusters into point clouds TODO: condition on the min. number of points
 for cluster in clusters:
 
     # Get row indexes for samples with this cluster

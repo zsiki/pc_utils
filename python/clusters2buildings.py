@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 '''
 Using the dbscan_clustering.py result the folder, that contains the clusters to segment wall points.
 Using the roof clusters a convex bounding polygon created and scaled.

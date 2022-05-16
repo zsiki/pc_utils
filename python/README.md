@@ -262,6 +262,10 @@ The scripts using a Machine Learning (ML) based algorithm, the DBSCAN clustering
 During the usage the distance to neighbors in a cluster (eps) and the minimum number of points required to form a cluster (min_points) have to be defined.
 
 ```
+Sources:
+http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html?highlight=dbscan
+https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
+
 usage: dbscan_clsutering.py file_name -e 0.15 -m 50 -f folder
 
 positional arguments:
@@ -269,6 +273,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  -u MODUL, --modul MODUL         
+                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0
   -e EPS, --eps EPS     distance to neighbors in a cluster
   -m MIN_POINTS, --min_points MIN_POINTS
                         minimum number of points required to form a cluster
@@ -276,7 +282,6 @@ optional arguments:
                         output folder
   -d DEBUG, --debug DEBUG
                         to switch debug mode (displaying the results) use: 1
-                        
    ```                     
 ### clusters2buildings.py 
 

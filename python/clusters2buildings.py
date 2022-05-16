@@ -29,6 +29,7 @@ import random
 import glob
 import shutil
 import argparse
+import re
 import numpy as np
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -84,10 +85,13 @@ pcd_walls_points = np.asarray(pcd_walls.points)
 
 # The main loop
 i = 0
+num_regex = re.compile(r'\d+') # to find number in file names
 
 for cluster in clusters:
     # Import a roof cluster
     pcd_cluster = o3d.io.read_point_cloud(cluster)
+    num = num_regex.findall(cluster)
+ 
     # Coordinates of the point clouds
     pcd_cluster_xyz = np.asarray(pcd_cluster.points)
 
@@ -120,7 +124,7 @@ for cluster in clusters:
                         pcd_cluster_convhull_xyz[:, 1])          
             plt.scatter(pcd_cluster_convhull_sc_xyz[:, 0],
                         pcd_cluster_convhull_sc_xyz[:, 1], color='red') # Show the scaled bounding points
-            plt.title('Point cloud of the cluster_'+str(i)+' and wall points')  
+            plt.title('Point cloud of the cluster_'+str(num[0])+' and wall points')  
             plt.xlabel('y_EOV [m]')
             plt.ylabel('x_EOV [m]')
             plt.axis('equal')
@@ -164,8 +168,8 @@ for cluster in clusters:
             o3d.visualization.draw_geometries([pcd_cropped_buildings])
 
         # Export point clouds into a folder                                                                   
-        o3d.io.write_point_cloud(os.path.join(args.walls_path, f'walls_{i}.ply'), pcd_cropped_walls)                # TODO: add the number from the used cluster filename! 
-        o3d.io.write_point_cloud(os.path.join(args.buildings_path, f'building_{i}.ply'), pcd_cropped_buildings)     # Save separeted buildings
+        o3d.io.write_point_cloud(os.path.join(args.walls_path, f'walls_{num[0]}.ply'), pcd_cropped_walls)                # TODO: add the number from the used cluster filename! 
+        o3d.io.write_point_cloud(os.path.join(args.buildings_path, f'building_{num[0]}.ply'), pcd_cropped_buildings)     # Save separeted buildings
 
         '''
         if args.debug == 1:

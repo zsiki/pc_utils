@@ -7,24 +7,25 @@ Sources:
 http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html?highlight=dbscan
 https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
 
-usage: dbscan_clsutering.py file_name -e 0.15 -m 50 -f folder
+usage: dbscan_clsutering.py file_name -u 1 -e 0.15 -m 50 -f folder
 
 positional arguments:
   pc_file_name          point cloud of the segmented points (.PLY)
 
 optional arguments:
   -h, --help            show this help message and exit
-  -u MODUL, --modul MODUL         
+  -u MODUL, --modul MODUL
                         to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, default is 0
-  -e EPS, --eps EPS     distance to neighbors in a cluster
+  -e EPS, --eps EPS     maximum distance between two samples for one to be considered as in the neighborhood of the other
   -m MIN_POINTS, --min_points MIN_POINTS
-                        minimum number of points required to form a cluster
+                        at Open3D method (0): number of samples (or total weight) in a neighborhood for a point to be considered as a core      
+                        point, at scikit-learn method (1): minimum number of points required to form a cluster
   -f FOLDER, --folder FOLDER
                         output folder
   -d DEBUG, --debug DEBUG
                         to switch debug mode (displaying the results) use: 1
-
 '''
+
 import sys
 import os
 import shutil

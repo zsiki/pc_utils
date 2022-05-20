@@ -113,7 +113,7 @@ def get_intersecs(line_eq, mima):
                 corners.append(p)
     return corners
 
-def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=20, d1=0.2, d2=0.2):
+def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2, debug=False):
     """ get 2D edges of building walls
 
         :param pc: open3d point cloud
@@ -126,7 +126,8 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=20, d1=0.2, d2=0.2)
         :returns: edges as pair of points
     """
     min_max = get_minmax(pc, ext)
-    print(f'{min_max[0]:.3f}, {min_max[1]:.3f}, {min_max[3]:.3f}, {min_max[4]:.3f}')
+    if debug:
+        print(f'{min_max[0]:.3f}, {min_max[1]:.3f}, {min_max[3]:.3f}, {min_max[4]:.3f}')
     lines = get_lines(pc, threshold, limit)
     corners = get_intersecs(lines, min_max)
     edges = []
@@ -135,36 +136,43 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=20, d1=0.2, d2=0.2)
     # create point cloud of possible corners
     corner_pc = o3d.geometry.PointCloud()
     corner_pc.points = o3d.utility.Vector3dVector(np.array(np.c_[corners, np.full(len(corners), 0.0)]))
-    for corner in corners:
-        print(f'{corner[0]:.3f}, {corner[1]:.3f}')
+    if debug:
+        for corner in corners:
+            print(f'{corner[0]:.3f}, {corner[1]:.3f}')
     # try to create edge for any pair of corners
     for i, corner1 in enumerate(corners):
         for j, corner2 in enumerate(corners[i+1:]):
+            # bearing and distance from corner1 to corner2
             bearing = atan2(corner2[1] - corner1[1], corner2[0] - corner1[0])
             dist = hypot(corner2[0] - corner1[0], corner2[1] - corner1[1])
+            # rectangular buffer for internal part of edge
             poly = np.array(
-                    [[corner1[0] + d1 * cos(bearing) - d2 * sin(bearing),
-                     corner1[1] + d1 * sin(bearing) + d2 * cos(bearing), 0.0],
-                    [corner1[0] + (dist - d1) * cos(bearing) - d2 * sin(bearing), 
-                     corner1[1] + (dist - d1) * sin(bearing) + d2 * cos(bearing), 0.0],
-                    [corner1[0] + (dist - d1) * cos(bearing) + d2 * sin(bearing), 
-                     corner1[1] + (dist - d1) * sin(bearing) - d2 * cos(bearing), 0.0],
-                    [corner1[0] + d1 * cos(bearing) + d2 * sin(bearing),
-                     corner1[1] + d1 * sin(bearing) - d2 * cos(bearing), 0.0]])
-            plt.plot([corner1[0], corner2[0]], [corner1[1], corner2[1]])
-            plt.plot(poly[:,0], poly[:,1])
+                [[corner1[0] + d1 * cos(bearing) - d2 * sin(bearing),
+                  corner1[1] + d1 * sin(bearing) + d2 * cos(bearing), 0.0],
+                 [corner1[0] + (dist - d1) * cos(bearing) - d2 * sin(bearing),
+                  corner1[1] + (dist - d1) * sin(bearing) + d2 * cos(bearing), 0.0],
+                 [corner1[0] + (dist - d1) * cos(bearing) + d2 * sin(bearing),
+                  corner1[1] + (dist - d1) * sin(bearing) - d2 * cos(bearing), 0.0],
+                 [corner1[0] + d1 * cos(bearing) + d2 * sin(bearing),
+                  corner1[1] + d1 * sin(bearing) - d2 * cos(bearing), 0.0]])
+            # set cutting polygon for open3d
             vol = o3d.visualization.SelectionPolygonVolume()
             vol.orthogonal_axis = 'Z'
             vol.axis_max = 50
-            vol.axis_min = -1 
+            vol.axis_min = -1
             vol.bounding_polygon = o3d.utility.Vector3dVector(poly)
+            # cut point cloud of walls
             edge_pc = vol.crop_point_cloud(pc)
+            # cut point cloud of corners
             c_pc = vol.crop_point_cloud(corner_pc)
-            plt.scatter(np.asarray(pc.points)[:,0], np.asarray(pc.points)[:,1])
-            plt.axis('equal')
-            plt.show()
-            n = np.asarray(edge_pc.points).shape[0]
-            m = np.asarray(c_pc.points).shape[0]
+            if debug:
+                plt.plot([corner1[0], corner2[0]], [corner1[1], corner2[1]])
+                plt.plot(poly[:, 0], poly[:, 1])
+                plt.scatter(np.asarray(pc.points)[:, 0], np.asarray(pc.points)[:, 1])
+                plt.axis('equal')
+                plt.show()
+            n = np.asarray(edge_pc.points).shape[0]     # number of points from walls in poly
+            m = np.asarray(c_pc.points).shape[0]        # number of corner points in poly
             if n > edge_limit and m == 0:
                 edges.append([corner1, corner2])
     return edges
@@ -178,12 +186,24 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--extend', type=float, default=10.0,
                         help='Extent the size of minimax to limit corners')
     parser.add_argument('-l', '--limit', type=int, default=90,
-                        help='number of points limit for RANSAC')
+                        help='minimal number of points limit for RANSAC line')
+    parser.add_argument('-i', '--edgelimit', type=int, default=90,
+                        help='minimal number of points limit for RANSAC line')
+    parser.add_argument('-c', '--cornerdist', type=float, default=0.2,
+                        help='Threshold distance from corners in edge detection')
+    parser.add_argument('-g', '--edgedist', type=float, default=0.2,
+                        help='Threshold distance from edges in edge detection')
+    parser.add_argument('-d', '--debug', action="store_true",
+                        help='generate debug output')
+
     args = parser.parse_args()
     for name in args.names:
         names1 = glob.glob(name)
         for name1 in names1:
             print(name1)
             pc = o3d.io.read_point_cloud(name1)
-            edg = get_edges(pc, args.extend, args.threshold, args.limit)
-            print(edg)
+            edg = get_edges(pc, args.extend, args.threshold, args.limit, args.edgelimit,
+                            args.cornerdist, args.edgedist, args.debug)
+            if args.debug:
+                for e in edg:
+                    print(f'{e[0][0]:.3f} {e[0][1]:.3f}  {e[1][0]:.3f} {e[1][1]:.3f}')

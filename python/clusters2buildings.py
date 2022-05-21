@@ -139,7 +139,7 @@ for cluster in clusters:
         cluster_volume.axis_min = -1000
 
         # Convert the np.array to a Vector3dVector
-        cluster_volume.bounding_polygon = o3d.utility.Vector3dVector(pcd_cluster_convhull_xyz)
+        cluster_volume.bounding_polygon = o3d.utility.Vector3dVector(pcd_cluster_convhull_sc_xyz)
 
         # Crop the point cloud using the Vector3dVector
         pcd_cropped = cluster_volume.crop_point_cloud(pcd_walls)

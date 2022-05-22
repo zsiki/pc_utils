@@ -9,6 +9,7 @@ import argparse
 import numpy as np
 import open3d as o3d
 from matplotlib import pyplot as plt
+import ezdxf
 
 def line2d(pp):
     """ find the normalized equation of 2d line through two points
@@ -113,14 +114,14 @@ def get_intersecs(line_eq, mima):
                 corners.append(p)
     return corners
 
-def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2, debug=False):
+def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=400, d1=0.2, d2=0.2, debug=False):
     """ get 2D edges of building walls
 
         :param pc: open3d point cloud
         :param ext: extension to min-max to limit intersection points
         :param threshold: tolerance for RANSAC
         :param limit: minimal number of point for RANSAC
-        :param edge_limit: minimalnumber of points around line to find as edge
+        :param edge_limit: minimalnumber of points in 1 m^2
         :param d1: offset from the corner to find points on edge
         :param d2: offset from the line to find points on edge
         :returns: edges as pair of points
@@ -145,6 +146,7 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2,
             # bearing and distance from corner1 to corner2
             bearing = atan2(corner2[1] - corner1[1], corner2[0] - corner1[0])
             dist = hypot(corner2[0] - corner1[0], corner2[1] - corner1[1])
+            area = abs((dist-(2*d1))*d2*2)
             # rectangular buffer for internal part of edge
             poly = np.array(
                 [[corner1[0] + d1 * cos(bearing) - d2 * sin(bearing),
@@ -173,9 +175,27 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2,
                 plt.show()
             n = np.asarray(edge_pc.points).shape[0]     # number of points from walls in poly
             m = np.asarray(c_pc.points).shape[0]        # number of corner points in poly
-            if n > edge_limit and m == 0:
+            #print(n/area)
+#            if n > edge_limit and m == 0:             # number of points in the edge
+            if n/area > edge_limit and m == 0:         # number or points in 1 m^2
                 edges.append([corner1, corner2])
     return edges
+
+def dxf_reader(points, fn_out):
+    ''' from point list create a dxf
+        :param points: edges as pair of points
+        :param fn_out: DXF output filename
+        :returns: points and edges in dxf 
+    '''
+    dxf = ezdxf.new(dxfversion='R2018')   # create a new empty dxf
+    dxf.layers.add('POINTS', color=2)     # create new layer for points
+    dxf.layers.add('LINES', color=3)      # create new layer for lines 
+    msp = dxf.modelspace()
+    for point in points:
+        msp.add_point(point[0], dxfattribs={'layer': 'POINTS'})  
+        # msp.add_point(point[1], dxfattribs={'layer': 'POINTS'})   # it duplicates the points     
+        msp.add_line(point[0], point[1], dxfattribs={'layer': 'LINES'})
+    dxf.saveas(fn_out)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -186,7 +206,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--extend', type=float, default=10.0,
                         help='Extent the size of minimax to limit corners')
     parser.add_argument('-l', '--limit', type=int, default=90,
-                        help='minimal number of points limit for RANSAC line')
+                        help='minimal number of points limit for edges')
     parser.add_argument('-i', '--edgelimit', type=int, default=90,
                         help='minimal number of points limit for RANSAC line')
     parser.add_argument('-c', '--cornerdist', type=float, default=0.2,
@@ -200,10 +220,10 @@ if __name__ == "__main__":
     for name in args.names:
         names1 = glob.glob(name)
         for name1 in names1:
-            print(name1)
             pc = o3d.io.read_point_cloud(name1)
             edg = get_edges(pc, args.extend, args.threshold, args.limit, args.edgelimit,
                             args.cornerdist, args.edgedist, args.debug)
+            dxf_reader(edg, name1[:-4]+'.dxf')          
             if args.debug:
                 for e in edg:
                     print(f'{e[0][0]:.3f} {e[0][1]:.3f}  {e[1][0]:.3f} {e[1][1]:.3f}')

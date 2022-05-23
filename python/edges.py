@@ -5,6 +5,7 @@
 
 from math import sqrt, cos, sin, atan2, hypot
 import glob
+import os.path
 import argparse
 import numpy as np
 import open3d as o3d
@@ -114,7 +115,7 @@ def get_intersecs(line_eq, mima):
                 corners.append(p)
     return corners
 
-def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=400, d1=0.2, d2=0.2, debug=False):
+def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2, debug=False):
     """ get 2D edges of building walls
 
         :param pc: open3d point cloud
@@ -133,7 +134,7 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=400, d1=0.2, d2=0.2
     corners = get_intersecs(lines, min_max)
     edges = []
     if len(corners) == 0:
-        return edges    # no corners found
+        return corners, edges    # no corners found
     # create point cloud of possible corners
     corner_pc = o3d.geometry.PointCloud()
     corner_pc.points = o3d.utility.Vector3dVector(np.array(np.c_[corners, np.full(len(corners), 0.0)]))
@@ -179,23 +180,34 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=400, d1=0.2, d2=0.2
 #            if n > edge_limit and m == 0:             # number of points in the edge
             if n/area > edge_limit and m == 0:         # number or points in 1 m^2
                 edges.append([corner1, corner2])
-    return edges
+    return corners, edges
 
-def dxf_reader(points, fn_out):
-    ''' from point list create a dxf
-        :param points: edges as pair of points
+class to_dxf(object):
+    """ create dxf output from building corners and edges
+
         :param fn_out: DXF output filename
-        :returns: points and edges in dxf 
-    '''
-    dxf = ezdxf.new(dxfversion='R2018')   # create a new empty dxf
-    dxf.layers.add('POINTS', color=2)     # create new layer for points
-    dxf.layers.add('LINES', color=3)      # create new layer for lines 
-    msp = dxf.modelspace()
-    for point in points:
-        msp.add_point(point[0], dxfattribs={'layer': 'POINTS'})  
-        # msp.add_point(point[1], dxfattribs={'layer': 'POINTS'})   # it duplicates the points     
-        msp.add_line(point[0], point[1], dxfattribs={'layer': 'LINES'})
-    dxf.saveas(fn_out)
+    """
+    def __init__(self, fn_out):
+        """ create dxff file and layers """
+        self.dxf = ezdxf.new(dxfversion='R2018')   # create a new empty dxf
+        self.dxf.layers.add('POINTS', color=2)     # create new layer for points
+        self.dxf.layers.add('LINES', color=3)      # create new layer for lines
+        self.fn_out = fn_out
+
+    def add(self, points, lines):
+        ''' add corners and edged to dxf
+
+            :param points: corners of walls
+            :param lines: edges as pair of points
+        '''
+        msp = self.dxf.modelspace()
+        for point in points:
+            msp.add_point(point, dxfattribs={'layer': 'POINTS'})
+        for line in lines:
+            msp.add_line(line[0], line[1], dxfattribs={'layer': 'LINES'})
+
+    def save(self):
+        self.dxf.saveas(self.fn_out)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -217,13 +229,19 @@ if __name__ == "__main__":
                         help='generate debug output')
 
     args = parser.parse_args()
+    dxf_name = os.path.splitext(args.names[0])[0] + '.dxf'
+    doc = to_dxf(dxf_name)
     for name in args.names:
         names1 = glob.glob(name)
         for name1 in names1:
+            if args.debug:
+                print(name1)
             pc = o3d.io.read_point_cloud(name1)
-            edg = get_edges(pc, args.extend, args.threshold, args.limit, args.edgelimit,
-                            args.cornerdist, args.edgedist, args.debug)
-            dxf_reader(edg, name1[:-4]+'.dxf')          
+            cor, edg = get_edges(pc, args.extend, args.threshold, args.limit,
+                                 args.edgelimit, args.cornerdist, args.edgedist,
+                                 args.debug)
+            doc.add(cor, edg)
             if args.debug:
                 for e in edg:
                     print(f'{e[0][0]:.3f} {e[0][1]:.3f}  {e[1][0]:.3f} {e[1][1]:.3f}')
+    doc.save()

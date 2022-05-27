@@ -2,7 +2,12 @@
 
 """
     Segment the point cloud (nDSM) to wall and roof parts
-    Input point cloud should be a nDSM, ground and low vegetation removed
+    Input point cloud should be a nDSM, ground and low vegetation are removed
+
+    The task is solved by dividing the point cloud into small voxels and
+    RANSAC planes are searched in each voxel and the points on a RANSAC plane
+    are classified by the angle between the normal of the plane and horizontal 
+    direction.
 """
 
 import sys

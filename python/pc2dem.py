@@ -1,6 +1,7 @@
 #! /bin/env python3
 """
     generate Digital Elevation Model (DEM) from a point cloud using Cloth Simulation Filter (CSF) and GDAL
+    https://github.com/jianboqi/CSF.git
 
     W. Zhang, J. Qi*, P. Wan, H. Wang, D. Xie, X. Wang, and G. Yan,
     “An Easy-to-Use Airborne LiDAR Data Filtering Method Based on Cloth Simulation,”
@@ -11,7 +12,7 @@ import sys
 from os import path, remove
 import argparse
 import CSF
-import gdal
+from osgeo import gdal
 import numpy as np
 import open3d as o3d
 import pandas as pd

@@ -5,6 +5,9 @@
 RIGIDNESS=3     # rigidness for CSF (pc2dem)
 MIN_HEIGHT=0.3  # remove points below MIN_HEIGHT from nDSM
 MIN_POINTS=200  # minimum number of points in a cluster for DBSCAN
+DBSCAN_MODE=1   # 0/1 open3d/scikit learn
+DBSCAN_EPS=3    # distance parameter for DBSCAN
+A=20            # min area for a building
 # end of changable parameters
 
 if [[ $# -eq 0 ]]
@@ -25,6 +28,7 @@ else
     dir=$(dirname "$1")
 fi
 if [[ $# -gt 2 ]]
+then
     SM=$2
 else
     SM=0
@@ -62,14 +66,15 @@ then
     exit
 fi
 if [[ $SM -eq 1 ]]
+then
     # alternate wall separation by normals OVERWRITES WALLS CREATED BY plane_segment
     echo ./wall_segment.py -o $dir $dir/${bn1}_ndsm.ply
     ./wall_segment.py -o $dir $dir/${bn1}_ndsm.ply 
 fi
 # cluster roofs, make groups of continuous roof points
 echo ---- dbscan_clustering ----
-echo ./dbscan_clustering.py --eps 2 --min_points $MIN_POINTS --folder $dir/roofs $dir/${bn1}_ndsm_roof.ply
-./dbscan_clustering.py --eps 2 --min_points $MIN_POINTS --folder $dir/roofs $dir/${bn1}_ndsm_roof.ply
+echo ./dbscan_clustering.py --modul $DBSCAN_MODE --eps $DBSCAN_EPS --min_points $MIN_POINTS --folder $dir/roofs $dir/${bn1}_ndsm_roof.ply
+./dbscan_clustering.py --modul $DBSCAN_MODE --eps $DBSCAN_EPS --min_points $MIN_POINTS --folder $dir/roofs $dir/${bn1}_ndsm_roof.ply
 if [[ $? -ne 0 ]]
 then
     echo dbscan_clustering.py fails
@@ -77,9 +82,8 @@ then
 fi
 # find corners and edges of buildings in 2D
 echo ---- clusters2buildings ----
-A=20
 echo ./clusters2buildings.py -c $dir/roofs -w $dir/walls -a $A $dir/${bn1}_ndsm_wall.ply
-./clusters2buildings.py -c $dir/roofs -w $dir/walls -a $A $dir/${bn1}_ndsm_wall.ply
+./clusters2buildings.py -c $dir/roofs -w $dir/walls -b $dir/buildings -a $A $dir/${bn1}_ndsm_wall.ply
 echo ---- edges ----
 echo ./edges.py $dir/walls/walls_*.ply
 ./edges.py --debug $dir/walls/walls_*.ply

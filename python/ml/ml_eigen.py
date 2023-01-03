@@ -8,8 +8,10 @@
     Model is saved into a binary file
 
 """
-# TODO make statistics of different eigen value expressions based on 
+# TODO make statistics of different eigen value expressions based on
 # range parameter to see which are the significant values
+from os import path
+import sys
 import pickle
 import argparse
 import pandas as pd
@@ -41,7 +43,7 @@ try:
     orig_data = pd.read_csv(csv_file, sep=" ", index_col=False)
 except:
     print(f"Error opening/reading file: {csv_file}")
-    exit()
+    sys.exit()
 # remove unneccesary columns
 data = orig_data[data_columns]
 
@@ -50,6 +52,8 @@ data_scaler = StandardScaler()
 scaled_data = data_scaler.fit_transform(data)
 data = pd.DataFrame(data=scaled_data, index=list(range(scaled_data.shape[0])),
                     columns=data_columns)
+print(data_scaler.mean_)
+print(data_scaler.scale_)
 # add labels to data plane +- 5 cm
 data['label'] = 0   # not a plane
 data.loc[orig_data["range"] <= 0.05, 'label'] = 1   # plane
@@ -88,4 +92,8 @@ print(classifier.coefs_)
 # save model
 with open(args.output_path, 'wb') as fp:
     pickle.dump(classifier, fp)
-# load saved model with pickle.load(open(name, 'rb')
+# save scale
+w = path.splitext(args.output_path)
+with open(w[0]+"_scale"+w[1], 'wb') as fps:
+    pickle.dump(data_scaler, fps)
+# load saved model and scale with pickle.load(open(name, 'rb')

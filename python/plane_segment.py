@@ -47,7 +47,7 @@ def voxel_segment_multi(voxel, args, que):
                 tmp = voxel.select_by_index(inliers)
                 angle = abs(voxel_angle(plane_model))
                 xyz = np.asarray(tmp.points)
-                print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                #print(f'*** {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 if angle < args.angle_limits[0]:    # wall
                     que.put(('w', xyz))
                 elif angle < args.angle_limits[1] or \
@@ -70,8 +70,8 @@ def voxel_segment(voxel, args):
     """
     res = []
     a = np.mean(np.asarray(voxel.points), axis=0)
-    if 4.5 < a[0] < 5.5 and 0 < a[1] < 1.5:
-        print(a)
+    #if 4.5 < a[0] < 5.5 and 0 < a[1] < 1.5:
+    #    print(a)
     for i in range(args.ransac_n_plane):
         n = np.asarray(voxel.points).shape[0]
         if n > args.ransac_limit:
@@ -86,13 +86,13 @@ def voxel_segment(voxel, args):
                 xyz = np.asarray(tmp.points)
                 if angle < args.angle_limits[0]:    # wall
                     res.append(['w', xyz])
-                    print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                    #print(f'*** wall {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
                 elif angle < args.angle_limits[1] or \
                      np.max(xyz[:, 2]) < args.roof_z: # other
                     pass
                 else:   # roof
                     res.append(['r', xyz])
-                    print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
+                    #print(f'*** roof {i} inliers: {m} angle: {angle * 180 / math.pi:.1f}')
 
                 # reduce pc to outliers
                 voxel = voxel.select_by_index(inliers, invert=True)
@@ -206,12 +206,12 @@ class PointCloud():
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
                     if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
-                        print(k, i, j, voxel_xyz.shape)
+                        #print(k, i, j, voxel_xyz.shape)
                         if len(procs) >= n_cpu:     # all available cores used?
                             for proc in procs:
                                 proc.join()         # wait for processes
                             procs = []
-                            print(f'procs len: {len(procs)}')
+                            #print(f'procs len: {len(procs)}')
                             while not res.empty():  # get results from queue
                                 t, part = res.get()
                                 if t == 'w':
@@ -262,8 +262,8 @@ class PointCloud():
                                                                max_bound=(x+self.voxel_size, y+self.voxel_size, z+self.voxel_size))
                     voxel = zxvoxels.crop(bbox)
                     voxel_xyz = np.asarray(voxel.points)
-                    if voxel_xyz.shape[0] > 0:
-                        print(k, i, j, voxel_xyz.shape)
+                    #if voxel_xyz.shape[0] > 0:
+                    #    print(k, i, j, voxel_xyz.shape)
                     if voxel_xyz.shape[0] > self.ransac_limit:  # are there enough points in voxel
                         l_parts = voxel_segment(voxel, args)
                         for l in l_parts:

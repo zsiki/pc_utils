@@ -5,6 +5,7 @@
 
 from math import sqrt, cos, sin, atan2, hypot
 import glob
+import re
 import os.path
 import argparse
 import numpy as np
@@ -55,11 +56,12 @@ def ransac_line(points, tolerance=0.1, rep=0):
     points[:, 2] = 1            # homogenouos 2D coordinates
     best_n = 0
     for _ in range(rep):
-        # select two random points
-        p = []  # list of random indices for points
-        while len(p) != 2:
-            p = list(set(np.random.randint(n, size=2))) # remove repeated random integers
-        p1 = points[p]  # randomly selected points
+        # select two random distinct points
+        while True:
+            p = list(np.random.randint(n, size=2))
+            p1 = points[p]  # randomly selected points
+            if np.sum(np.square(p1[0] - p1[1])) > 0.1:
+                break
         # line equation from the two points using homogenouos coordinates
         l1 = line2d(p1)
         # select close points
@@ -143,7 +145,7 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2,
             print(f'{corner[0]:.3f}, {corner[1]:.3f}')
     # try to create edge for any pair of corners
     for i, corner1 in enumerate(corners):
-        for j, corner2 in enumerate(corners[i+1:]):
+        for corner2 in corners[i+1:]:
             # bearing and distance from corner1 to corner2
             bearing = atan2(corner2[1] - corner1[1], corner2[0] - corner1[0])
             dist = hypot(corner2[0] - corner1[0], corner2[1] - corner1[1])
@@ -176,13 +178,12 @@ def get_edges(pc, ext=5, threshold=0.1, limit=30, edge_limit=90, d1=0.2, d2=0.2,
                 plt.show()
             n = np.asarray(edge_pc.points).shape[0]     # number of points from walls in poly
             m = np.asarray(c_pc.points).shape[0]        # number of corner points in poly
-            #print(n/area)
-#            if n > edge_limit and m == 0:             # number of points in the edge
+            # TODO m == 0 is too strict?
             if n/area > edge_limit and m == 0:         # number or points in 1 m^2
                 edges.append([corner1, corner2])
     return corners, edges
 
-class to_dxf(object):
+class to_dxf():
     """ create dxf output from building corners and edges
 
         :param fn_out: DXF output filename
@@ -207,6 +208,7 @@ class to_dxf(object):
             msp.add_line(line[0], line[1], dxfattribs={'layer': 'LINES'})
 
     def save(self):
+        """ save edges and corners to dxf file """
         self.dxf.saveas(self.fn_out)
 
 if __name__ == "__main__":
@@ -214,7 +216,7 @@ if __name__ == "__main__":
     parser.add_argument('names', metavar='file_names', type=str, nargs='+',
                         help='point clouds to process')
     parser.add_argument('-t', '--threshold', type=float, default=0.1,
-                        help='Threshold distance to RANSAC plane')
+                        help='Threshold distance to RANSAC line')
     parser.add_argument('-e', '--extend', type=float, default=10.0,
                         help='Extent the size of minimax to limit corners')
     parser.add_argument('-l', '--limit', type=int, default=90,
@@ -229,7 +231,7 @@ if __name__ == "__main__":
                         help='generate debug output')
 
     args = parser.parse_args()
-    dxf_name = os.path.splitext(args.names[0])[0] + '.dxf'
+    dxf_name = re.sub('_\d+$', '', os.path.splitext(args.names[0])[0], flags=re.ASCII) + '.dxf'
     doc = to_dxf(dxf_name)
     for name in args.names:
         names1 = glob.glob(name)

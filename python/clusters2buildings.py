@@ -43,6 +43,7 @@ def_buildings_path = 'buildings'
 def_area = 10
 def_scale = 1.3
 def_debug = 0
+def_col = 0
 
 # Command line parameters
 parser = argparse.ArgumentParser()
@@ -60,8 +61,10 @@ parser.add_argument('-a', '--area', type=float, default=def_area,
                     help=' minimum base area to from a building segment')
 parser.add_argument('-s', '--scale', type=float, default=def_scale,
                     help='scaling the roofs area to crop wall points')
-parser.add_argument('-d', '--debug', type=int, default=def_debug,
-                    help='to switch debug mode (displaying the results) use: 1')
+parser.add_argument('-r', '--random_colors', action='store_true',
+                    help='random colors mode is on - colorize clusters with random colors')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='to switch on debug mode (displaying the results)')
 args = parser.parse_args()
 
 # Parameters into variables
@@ -82,6 +85,7 @@ clusters = glob.glob(os.path.join(args.cluster_path, 'cluster_*.ply'))
 # Import .PLY format wall points
 pcd_walls = o3d.io.read_point_cloud(args.wall_points[0])
 pcd_walls_points = np.asarray(pcd_walls.points)
+pcd_walls_colors = np.asarray(pcd_walls.colors)
 
 # The main loop
 i = 0
@@ -94,16 +98,17 @@ for cluster in clusters:
  
     # Coordinates of the point clouds
     pcd_cluster_xyz = np.asarray(pcd_cluster.points)
+    pcd_cluster_col = np.asarray(pcd_cluster.colors)
 
     # Convex hull
     pcd_cluster_convhull = ConvexHull(pcd_cluster_xyz[:, :2])
 
     # collect vertices by index
     pcd_cluster_convhull_xyz = pcd_cluster_xyz[pcd_cluster_convhull.vertices]
+    pcd_cluster_convhull_col = pcd_cluster_col[pcd_cluster_convhull.vertices]    
     # print(pcd_cluster_convhull_xyz[1,:])
 
-    if pcd_cluster_convhull.area >= args.area:
-        
+    if pcd_cluster_convhull.area >= args.area:   
         # Print base area of the roofs
         if args.debug == 1:
             print(f'Roof cluster {i} area: {pcd_cluster_convhull.area:.2f} m^2')
@@ -112,21 +117,23 @@ for cluster in clusters:
         # Scale it with Open3D                                                  TODO: scaling is not perfect along the building sides -> other solutions?
         pcd_cluster_convhull = o3d.geometry.PointCloud()
         pcd_cluster_convhull.points = o3d.utility.Vector3dVector(pcd_cluster_convhull_xyz)
+        pcd_cluster_convhull.colors = o3d.utility.Vector3dVector(pcd_cluster_convhull_col)
+
         pcd_cluster_convhull_sc = pcd_cluster_convhull.scale(args.scale,
                 center=pcd_cluster_convhull.get_center())
 
         #print(np.array(pcd_cluster_convhull_sc.points))
         pcd_cluster_convhull_sc_xyz = np.array(pcd_cluster_convhull_sc.points)
         
-        if args.debug == 1:
+        if args.debug:
             plt.figure()                                        
             plt.scatter(pcd_cluster_convhull_xyz[:, 0],             # Show the original bounding points 
                         pcd_cluster_convhull_xyz[:, 1])          
             plt.scatter(pcd_cluster_convhull_sc_xyz[:, 0],
                         pcd_cluster_convhull_sc_xyz[:, 1], color='red') # Show the scaled bounding points
-            plt.title('Point cloud of the cluster_'+str(num[0])+' and wall points')  
-            plt.xlabel('y_EOV [m]')
-            plt.ylabel('x_EOV [m]')
+            plt.title('Point cloud of the cluster_'+str(num[0])+' and wall points')
+            plt.xlabel('y [m]')
+            plt.ylabel('x [m]')
             plt.axis('equal')
             plt.show()
 
@@ -146,42 +153,35 @@ for cluster in clusters:
 
         # Append with the roof points
         pcd_cropped_walls_xyz = np.array(pcd_cropped.points)
+        pcd_cropped_walls_col = np.array(pcd_cropped.colors)
+        
         pcd_cluster_stack = np.concatenate((pcd_cropped_walls_xyz, pcd_cluster_xyz), axis=0)
+        pcd_cluster_stack_col = np.concatenate((pcd_cropped_walls_col, pcd_cluster_col), axis=0)
 
         # Create a point cloud with a random color
         pcd_cropped_buildings = o3d.geometry.PointCloud()
         pcd_cropped_buildings.points = o3d.utility.Vector3dVector(pcd_cluster_stack)
+        pcd_cropped_buildings.colors = o3d.utility.Vector3dVector(pcd_cluster_stack_col)
 
         pcd_cropped_walls = o3d.geometry.PointCloud()
         pcd_cropped_walls.points = o3d.utility.Vector3dVector(pcd_cropped_walls_xyz)
-
-        # Add a color to the point cloud
-        col_r = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))      # Create random colors for point clouds
-        col_g = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
-        col_b = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
-        col = np.concatenate((col_r, col_g, col_b), axis=1)                             # Merge RGB values
-        pcd_cropped_buildings.colors = o3d.utility.Vector3dVector(col)                  # Colorize building point clouds
-        pcd_cropped_walls.colors = o3d.utility.Vector3dVector(col[:np.shape(pcd_cropped_walls_xyz)[0],:]) # Colorize wall points
+        pcd_cropped_walls.colors = o3d.utility.Vector3dVector(pcd_cropped_walls_col)
+        
+        # Colorize clusters with random points
+        if args.random_colors:
+            # Add a color to the point cloud
+            col_r = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))      # Create random colors for point clouds
+            col_g = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
+            col_b = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
+            col = np.concatenate((col_r, col_g, col_b), axis=1)                             # Merge RGB values
+            pcd_cropped_buildings.colors = o3d.utility.Vector3dVector(col)                  # Colorize building point clouds
+            pcd_cropped_walls.colors = o3d.utility.Vector3dVector(col[:np.shape(pcd_cropped_walls_xyz)[0],:]) # Colorize wall points
 
         # Visualize the results of the building points
-        if args.debug == 1:
+        if args.debug:
             o3d.visualization.draw_geometries([pcd_cropped_buildings])
 
         # Export point clouds into a folder                                                                   
         o3d.io.write_point_cloud(os.path.join(args.walls_path, f'walls_{num[0]}.ply'), pcd_cropped_walls)                # TODO: add the number from the used cluster filename! 
         o3d.io.write_point_cloud(os.path.join(args.buildings_path, f'building_{num[0]}.ply'), pcd_cropped_buildings)     # Save separeted buildings
-
-        '''
-        if args.debug == 1:
-
-            # For testing
-            plt.figure()
-            plt.scatter(pcd_cluster_xyz[:, 0],pcd_cluster_xyz[:, 1])
-            plt.scatter(pcd_walls_points[:, 0],pcd_walls_points[:, 1], color='red')
-            plt.title('Point cloud cluster and wall points')
-            plt.xlabel('y_EOV [m]')
-            plt.ylabel('x_EOV [m]')
-            plt.axis('equal')
-            plt.show()
-        '''
         i += 1

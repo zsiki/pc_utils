@@ -1,0 +1,21 @@
+{
+    "eigen_features": ["SUM_OF_EIGENVALUES",
+                    "OMNIVARIANCE",
+                    "EIGENTROPY", 
+                    "ANISOTROPY", 
+                    "PLANARITY", 
+                    "LINEARITY",
+                    "PCA1",
+                    "PCA2",
+                    "SURFACE_VARIATION",
+                    "SPHERICITY",
+                    "VERTICALITY",
+                    "EIGENVALUE1",
+                    "EIGENVALUE2",
+                    "EIGENVALUE3"],
+    "density_features": ["KNN",
+                        "SURFACE",
+                        "VOLUME"],  
+    "curvature_features":["GAUSS",
+                        "NORMAL_CHANGE"]
+}

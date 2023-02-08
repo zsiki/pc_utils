@@ -20,9 +20,8 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         Custom output filename - default: input filename + features.las
   -d, --debug           Switch on debug mode
-
-sample json file:
-
+ 
+A sample json file with all of the features:
 pc_features.json
 {
     "eigen_features": ["SUM_OF_EIGENVALUES",
@@ -46,7 +45,7 @@ pc_features.json
                         "NORMAL_CHANGE"]
 }
 
-Some of the features:
+List of the 3D features:
     - Geometry-based features:
         - X, Y, Z,
         - A(rea)
@@ -106,9 +105,12 @@ if __name__ == "__main__":
     cli = cc.CloudCompareCLI()
     cmd = cli.new_command()
 
+    # Silent mode
+    cmd.silent(is_silent=True)
     # Debug mode
-    if debug_val:             
-        cmd.silent()
+    if debug_val:
+        cmd.silent(is_silent=False)             
+    
 
     # Switch auto save off
     cmd.auto_save(on_off=0)                                   

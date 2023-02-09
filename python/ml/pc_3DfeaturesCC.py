@@ -7,7 +7,7 @@ The script using the following module: https://pypi.org/project/pyCloudCompareCL
 Usage: pc_3DfeaturesCC.py filename -j jsonconfig.json -r radius(def=0.3) -c class number (def=0) -output filename(.LAS) -d (optional)
 
 positional arguments:
-  pc_file_name          point cloud (.LAS)
+  pc_file_name          point cloud (.LAS, .PLY or other CloudCompare supported formats)
 
 optional arguments:
   -h, --help            show this help message and exit

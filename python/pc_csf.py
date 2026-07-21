@@ -11,9 +11,9 @@
 import sys
 import os
 import argparse
-import CSF
 import numpy as np
 import open3d as o3d
+import CSF
 
 parser = argparse.ArgumentParser()
 parser.add_argument('name', metavar='file_name', type=str, nargs=1,
@@ -23,7 +23,9 @@ parser.add_argument('-r', '--resolution', type=float, default = 1.0,
 parser.add_argument('-o', '--output', type=str, default='output',
                     help='output base name for ground and non-ground points')
 parser.add_argument('--rigidness', type=int, default=3,
-                    help='rigidness of cloth 1,2,3: mountain with desen vegetation(1) OR complex scenes(2) OR flat terrain with high-rise buildings(3)')
+                    help='rigidness of cloth 1,2,3: mountain with ' +
+                         'dense vegetation(1) OR complex scenes(2) OR ' +
+                         'flat terrain with high-rise buildings(3)')
 parser.add_argument('--smooth', action='store_true',
                     help='postprocess to smooth')
 parser.add_argument('--iterations', type=int, default=1000,
@@ -46,7 +48,7 @@ csf.params.cloth_resolution = args.resolution
 csf.params.rigidness = args.rigidness
 csf.params.time_step = 0.65
 csf.params.class_threshold = args.classification
-csf.params.interations = args.iterations
+csf.params.iterations = args.iterations
 
 csf.setPointCloud(pc_xyz)
 ground = CSF.VecInt()
@@ -60,4 +62,3 @@ o3d.io.write_point_cloud(os.path.join(args.output + '_non_ground.ply'), non_grou
 # write ground points into binary
 pc_ground = pc.select_by_index(ground)
 o3d.io.write_point_cloud(os.path.join(args.output + '_ground.ply'), pc_ground, True)
-

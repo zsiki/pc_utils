@@ -307,27 +307,27 @@ if __name__ == "__main__":
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='point cloud to process')
     parser.add_argument('-v', '--voxel_size', type=float, default=1.0,
-                        help='Voxel size')
+                        help='Voxel size, default: 1')
     parser.add_argument('-t', '--threshold', type=float, default=0.1,
-                        help='Threshold distance to RANSAC plane')
+                        help='Threshold distance to RANSAC plane, default: 0.1')
     parser.add_argument('-l', '--limit', type=int, default=25,
-                        help='Minimal number of points for ransac')
+                        help='Minimal number of points for ransac, default: 25')
     parser.add_argument('-n', '--ransac_n', type=int, default=3,
-                        help='Number of random points for ransac plane')
+                        help='Number of random points for ransac plane, default: 3')
     parser.add_argument('-i', '--iterations', type=int, default=20,
-                        help='Number of iterations for ransac plane')
+                        help='Number of iterations for ransac plane, default: 20')
     parser.add_argument('-a', '--angles', type=float, nargs=2,
-                        help='Angle borders for walls, others and roofs')
+                        help='Angle borders for walls, others and roofs, default: 0.087, 0.698')
     parser.add_argument('-r', '--rates', type=float, nargs='+',
-                        help='Rates for points on the plane')
+                        help='Rates for points on the plane, default: 0.20, 0.45, 0.65, 0.8')
     parser.add_argument('-o', '--out_dir', type=str, default=".",
-                        help='Path to output directory')
+                        help='Path to output directory, default: current folder0')
     parser.add_argument('-c', '--config', type=str,
-                        help='Path to config file (json)')
+                        help='Path to config file (json), all parameters have to be specified!')
     parser.add_argument('-m', '--multi', action="store_true",
-                        help='Use multi processing')
-    parser.add_argument('-z', '--roof_z', type=float, default=0.0,
-                        help='Minimal height for roof segment, use with nDSM only')
+                        help='Use multi processingi, default: False')
+    parser.add_argument('-z', '--roof_z', type=float, default=2.5,
+                        help='Minimal height for roof segment, use with nDSM only, default: 2.5')
     args = parser.parse_args()
     FNAME = args.name[0]
     # if json config given other parameters are ignored
@@ -388,6 +388,7 @@ if __name__ == "__main__":
         pc.points = o3d.utility.Vector3dVector(w)       # walls
         pc.colors = o3d.utility.Vector3dVector(w_col)   # roof colors 
         fname = os.path.join(OUT_DIR, base_name + '_wall.ply')
+        print(fname)
         o3d.io.write_point_cloud(fname, pc)
         n_w = w.shape[0]
     if r is not None:
@@ -395,6 +396,7 @@ if __name__ == "__main__":
         pc.points = o3d.utility.Vector3dVector(r)       # roofs
         pc.colors = o3d.utility.Vector3dVector(r_col)   # roof colors
         fname = os.path.join(OUT_DIR, base_name + '_roof.ply')
+        print(fname)
         o3d.io.write_point_cloud(fname, pc)
         n_r = r.shape[0]
     t2 = time.perf_counter()

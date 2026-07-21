@@ -74,7 +74,7 @@ with open(vrt, "w") as fvrt:
 </OGRVRTLayer>
 </OGRVRTDataSource>""")
 
-# NOTE ground and non-ground point coud resolution change to CFS resolution!
+# NOTE ground and non-ground point cloud resolution change to CFS resolution!
 #      output removed
 # write non-ground points into binary
 #non_ground = pc.select_by_index(non_ground)

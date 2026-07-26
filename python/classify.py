@@ -23,11 +23,15 @@ if __name__ == "__main__":
     TARGET_NAME = os.path.splitext(PC_NAME)[0]
     CUSTOM_EXTRA_DIM_NAMES = conf["custom_extra_dim_names"]
 
+    data = pickle.load(open(MODEL_NAME, 'rb'))         # load pre-trained model
+    model = data["model"]
+    scaler = data["scaler"]
+    with_colors = data["with_colors"]
     las = laspy.read(PC_NAME)   # load point cloud to classify
-    pc2np = pc_features2np(las, CUSTOM_EXTRA_DIM_NAMES) # convert to numpy array
+    pc2np = pc_features2np(las, CUSTOM_EXTRA_DIM_NAMES, with_colors) # convert to numpy array
     X_features = pc2np[:,3:pc2np.shape[1]]              # exclude coordinates
+    X_features = scaler.transform(X_features)           # scale data
     print("X_feature", X_features.shape)
-    model = pickle.load(open(MODEL_NAME, 'rb'))         # load pre-trained model
     y_predict = model.predict(X_features)               # predict labels
     y_predict = np.argmax(y_predict, axis=1)    # predict classes from model
     # build output

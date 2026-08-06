@@ -42,6 +42,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from sklearn.base import BaseEstimator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Input
+from keras.callbacks import EarlyStopping
 
 def read_las_file_scalarfields(las):
     """ Get list of extra scalar fields
@@ -197,7 +198,7 @@ if __name__ == "__main__":
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='config file')
     parser.add_argument('-s', '--scaler', choices=['standard', 'minmax', 'robust'], default='standard',
-                        help='scaler for feature data, default: standard')
+                        help='scaler for feature data, default: minmax')
     parser.add_argument('-i', '--importance', action="store_true",
                         help='show importance of parameters')
     parser.add_argument('-a', '--accuracy', action="store_true",
@@ -212,6 +213,7 @@ if __name__ == "__main__":
     CATEGORIES = conf["categories"]
     CUSTOM_EXTRA_DIM_NAMES = conf["custom_extra_dim_names"]
     EPOCHS = conf["epochs"]
+    BATCH_SIZE = conf['batch_size']
     MODEL_NAME = conf["model_name"]
     # load training and test data
     X_features, y_labels = load_training_data(CATEGORIES, DATADIR,
@@ -238,20 +240,23 @@ if __name__ == "__main__":
     num_classes = len(CATEGORIES) # size of output layer
 
     # build neural network
+    callback = EarlyStopping(monitor='loss', patience=5)
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1]-3,)))   # xyz not used (-3)
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(0.2))
     model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dropout(0.15))
-    model.add(Dense(16, activation='relu'))
+    #model.add(Dropout(0.15))
+    #model.add(Dense(16, activation='relu'))
     model.add(Dense(num_classes, activation='softmax'))
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy',
+    model.compile(optimizer='adamw', loss='sparse_categorical_crossentropy',
                   metrics=['accuracy'])
 
     # train modell
-    model.fit(X_train[:, 3:], y_train, batch_size=1024, epochs=EPOCHS,
+    model.fit(X_train[:, 3:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
+              callbacks = [callback],
               validation_data=(X_valid[:, 3:], y_valid), verbose=2)
+    print(model.summary())
     # save model, scaler & with_colors
     data = { "model": model, "scaler": scaler, "with_colors": args.with_colors}
     with open(MODEL_NAME, 'wb') as f:

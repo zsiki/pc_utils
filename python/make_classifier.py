@@ -43,6 +43,8 @@ from sklearn.base import BaseEstimator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Input
 from keras.callbacks import EarlyStopping
+from keras.regularizers import l2
+from keras.optimizers import AdamW
 
 def read_las_file_scalarfields(las):
     """ Get list of extra scalar fields
@@ -214,6 +216,8 @@ if __name__ == "__main__":
     CUSTOM_EXTRA_DIM_NAMES = conf["custom_extra_dim_names"]
     EPOCHS = conf["epochs"]
     BATCH_SIZE = conf['batch_size']
+    EARLY_STOP = conf['early_stop']
+    WEIGHT_DECAY = conf['weight_decay']
     MODEL_NAME = conf["model_name"]
     # load training and test data
     X_features, y_labels = load_training_data(CATEGORIES, DATADIR,
@@ -223,12 +227,15 @@ if __name__ == "__main__":
     for label, count in zip(unique_labels, unique_label_counts):
         print(f'Az {label}-s címkéhez tartozó elemek száma: {count}')
     # scale features
+    if args.scaler == 'standard':
+        scaler = StandardScaler()
     if args.scaler == 'minmax':
         scaler = MinMaxScaler()
     elif args.scaler == 'robust':
         scaler = RobustScaler()
     else:
-        scaler = StandardScaler()
+        scaler = MinMaxScaler()
+    # skip coordinates in scaling
     X_features_scaled = np.concatenate((X_features[:,0:3], scaler.fit_transform(X_features[:,3:X_features.shape[1]])), axis=1)
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(
@@ -240,7 +247,9 @@ if __name__ == "__main__":
     num_classes = len(CATEGORIES) # size of output layer
 
     # build neural network
-    callback = EarlyStopping(monitor='loss', patience=5)
+    callbacks = []
+    if EARLY_STOP > 0:
+        callbacks.append(EarlyStopping(monitor='loss', patience=EARLY_STOP))
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1]-3,)))   # xyz not used (-3)
     model.add(Dense(128, activation='relu'))
@@ -249,12 +258,13 @@ if __name__ == "__main__":
     #model.add(Dropout(0.15))
     #model.add(Dense(16, activation='relu'))
     model.add(Dense(num_classes, activation='softmax'))
-    model.compile(optimizer='adamw', loss='sparse_categorical_crossentropy',
+    model.compile(optimizer=AdamW(weight_decay=WEIGHT_DECAY),
+                  loss='sparse_categorical_crossentropy',
                   metrics=['accuracy'])
 
     # train modell
     model.fit(X_train[:, 3:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
-              callbacks = [callback],
+              callbacks = callbacks,
               validation_data=(X_valid[:, 3:], y_valid), verbose=2)
     print(model.summary())
     # save model, scaler & with_colors

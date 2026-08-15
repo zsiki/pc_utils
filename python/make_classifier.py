@@ -63,32 +63,33 @@ def validate_extra_dim_names(custom_names, las_names):
     """
     return list(set(custom_names) & set(las_names))
 
-def pc_features2np(las, custom_extra_dim_names, with_colors=True):
+def pc_features2np(pnts, custom_extra_dim_names, with_colors=True):
     """ Get scalar field data from point cloud
 
-        :param las: laspy.lasdata.LasData loaded las file
+        :param pnts: laspy.point.record from loaded las file
         :param custom_extra_dim_names: required scalar fields
         :returns: required scalar fileds + xyz and colors in a numpy array
     """
-    pc_xyz_features = []
+    pc_xyz_features = None
 
     for extra_dim in custom_extra_dim_names:
         #indx = pc_dim_names.index(extra_dim)
-        col = las[extra_dim].reshape(-1,1)  # single column
-        if len(pc_xyz_features) == 0:
+        col = pnts[extra_dim].reshape(-1,1)  # single column
+        if pc_xyz_features is None:
             pc_xyz_features = col
         else:
             pc_xyz_features = np.concatenate([pc_xyz_features, col], axis=1)
     # add XYZ and color data
-    xyz = las.xyz.reshape((-1,3))
+    #xyz = las.xyz.reshape((-1,3))
+    xyz = np.column_stack((pnts.x, pnts.y, pnts.z))
     if with_colors:
-        r = (las.red // 256).astype(np.uint8).reshape((-1,1))
-        g = (las.green // 256).astype(np.uint8).reshape((-1,1))
-        b = (las.blue // 256).astype(np.uint8).reshape((-1,1))
+        r = (pnts.red // 256).astype(np.uint8).reshape((-1,1))
+        g = (pnts.green // 256).astype(np.uint8).reshape((-1,1))
+        b = (pnts.blue // 256).astype(np.uint8).reshape((-1,1))
         colors = np.concatenate([r, g, b], axis=1).reshape(-1,3)
 
     # put data together
-    if len(pc_xyz_features) == 0:
+    if pc_xyz_features is None:
         if with_colors:
             pc_xyz_colors_features = np.concatenate([xyz, colors], axis=1)
         else:
@@ -122,10 +123,10 @@ def load_training_data(categories, datadir, custom_names, with_colors):
         for pc in glob.glob(os.path.join(path, "*.las")):     # process las files in dir
             las = laspy.read(pc)
             if len(X_features) == 0:    # add first feature and label
-                X_features = pc_features2np(las, custom_names, with_colors)
+                X_features = pc_features2np(las.points, custom_names, with_colors)
                 y_labels = np.full(X_features.shape[0], class_num)
             else:   # following features and labels
-                features = pc_features2np(las, custom_names, with_colors)
+                features = pc_features2np(las.points, custom_names, with_colors)
                 labels = np.full(features.shape[0], class_num)
                 X_features = np.concatenate((X_features, features), axis=0)
                 y_labels = np.concatenate((y_labels, labels), axis=0)

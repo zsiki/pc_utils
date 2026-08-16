@@ -1,5 +1,15 @@
 """
-    Generate a neural network based on point cloud extra parameters
+    Generate a neural network based on point cloud extra parameters and
+    save it into a file with the scaler
+    JSON config parameters:
+        datadir: root folder for training data, subfolder names have to match categories
+        categories: categories for classification
+        custom_extra_dim_names: features to consider in classification
+        epochs: number of epochs for training the neural network
+        batch_size: batch size for training
+        early_stop: number of epochs with no improvement after which training will be stopped
+        weight_decay: weight decay parameter for adamw optimizer
+        model_name: file name for saved model
 
     Sample json config:
 
@@ -23,6 +33,9 @@
                               "Linearity (1)"
                               ],
     "epochs": 30,
+    "batch_size": 32,
+    "early_stop": 3,
+    "weight_decay": 1e-4,
     "model_name": "barnag_modell.pickle"
 }
 """
@@ -43,7 +56,6 @@ from sklearn.base import BaseEstimator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Input
 from keras.callbacks import EarlyStopping
-from keras.regularizers import l2
 from keras.optimizers import AdamW
 
 def read_las_file_scalarfields(las):

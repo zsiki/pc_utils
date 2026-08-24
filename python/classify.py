@@ -19,10 +19,14 @@ import laspy
 from make_classifier import pc_features2np
 
 if __name__ == "__main__":
+    CHUNK_SIZE = 2_000_000
     parser = argparse.ArgumentParser()
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='config file')
-    parser.add_argument('-c', '--chunk_size', type=int, default=1_000_000)
+    parser.add_argument('-c', '--chunk_size', type=int, default=CHUNK_SIZE,
+                        help=f'chunk size for processing large point cloud, default: {CHUNK_SIZE}')
+    parser.add_argument('-p', '--point_cloud', type=str, default=None,
+                        help='point cloud to process overwrites pc_name from config, default: pc_name param from config')
     args = parser.parse_args()
     # read json config
     with open(args.name[0], 'r', encoding="utf-8") as f:
@@ -30,7 +34,11 @@ if __name__ == "__main__":
 
     CATEGORIES = conf['categories']
     MODEL_NAME = conf["model_name"]
-    PC_NAME = conf["pc_name"]
+    if args.point_cloud is None:
+        PC_NAME = conf["pc_name"]
+    else:
+        PC_NAME = args.point_cloud
+    print(PC_NAME)
     TARGET_NAME = os.path.splitext(PC_NAME)[0]
     CUSTOM_EXTRA_DIM_NAMES = conf["custom_extra_dim_names"]
 

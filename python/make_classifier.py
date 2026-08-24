@@ -39,13 +39,13 @@
     "model_name": "barnag_modell.pickle"
 }
 """
+import sys
 import os.path
 import glob
 import pickle
 import json
 import argparse
 import numpy as np
-import pandas as pd     # TODO try to avoid, used only ones
 import laspy
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -71,9 +71,10 @@ def validate_extra_dim_names(custom_names, las_names):
 
         :param custom_names: requered scalar field names
         :param las_names: available scalar field names in las file
-        :returns: commom set of the two lists
+        :returns: list of names in custom_names but not in las_names
+                  e.g. the missing values in point cloud
     """
-    return list(set(custom_names) & set(las_names))
+    return list(set(custom_names) - set(las_names))
 
 def pc_features2np(pnts, custom_extra_dim_names, with_colors=True):
     """ Get scalar field data from point cloud
@@ -130,10 +131,17 @@ def load_training_data(categories, datadir, custom_names, with_colors):
 
     # process categories
     for category in categories:
+        print(f"*** CATEGORY: {category}")
         path = os.path.join(datadir, category)  # path to category data
         class_num = categories.index(category)  # numeric label is index
         for pc in glob.glob(os.path.join(path, "*.las")):     # process las files in dir
+            print(f"    {pc}")
             las = laspy.read(pc)
+            # check presence of extra dims
+            missing_names = validate_extra_dim_names(custom_names, list(las.point_format.dimension_names))
+            if len(missing_names) > 0:
+                print(f"Missing scalars {missing_names} from {pc}")
+                sys.exit(1)
             if len(X_features) == 0:    # add first feature and label
                 X_features = pc_features2np(las.points, custom_names, with_colors)
                 y_labels = np.full(X_features.shape[0], class_num)
@@ -204,9 +212,9 @@ def parameter_importance(model, custom_extra_dim_names, X_test, y_test,
     )
 
     # results
-    importance = pd.Series(result.importances_mean, index=feature_names)
-    importance = importance.sort_values(ascending=False)
-    return importance
+    imp = result.importances_mean
+    res = sorted(zip(imp.tolist(), feature_names), reverse=True)
+    return res
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -222,8 +230,15 @@ if __name__ == "__main__":
                         help='add colors to features')
     args = parser.parse_args()
     # read json config
-    with open(args.name[0], 'r', encoding="utf-8") as f:
-        conf = json.load(f)
+    try:
+        with open(args.name[0], 'r', encoding="utf-8") as f:
+            conf = json.load(f)
+    except FileNotFoundError:
+        print(f"{args.name[0]} config file not found")
+        sys.exit(1)
+    except json.decoder.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        sys.exit(1)
     DATADIR = conf["datadir"]
     CATEGORIES = conf["categories"]
     CUSTOM_EXTRA_DIM_NAMES = conf["custom_extra_dim_names"]
@@ -232,13 +247,20 @@ if __name__ == "__main__":
     EARLY_STOP = conf['early_stop']
     WEIGHT_DECAY = conf['weight_decay']
     MODEL_NAME = conf["model_name"]
+    # check output name
+    try:
+        with open(MODEL_NAME, "w") as f:
+            pass
+    except FileNotFoundError as e:
+        print(f"File creation error: {MODEL_NAME}, {e}")
+        sys.exit(1)
     # load training and test data
     X_features, y_labels = load_training_data(CATEGORIES, DATADIR,
                                               CUSTOM_EXTRA_DIM_NAMES,
                                               args.with_colors)
     unique_labels, unique_label_counts = np.unique(y_labels, return_counts=True)
-    for label, count in zip(unique_labels, unique_label_counts):
-        print(f'Az {label}-s címkéhez tartozó elemek száma: {count}')
+    for label, count, name in zip(unique_labels, unique_label_counts, CATEGORIES):
+        print(f'{label}/{name} címkéhez tartozó elemek száma: {count}')
     # scale features
     if args.scaler == 'standard':
         scaler = StandardScaler()
@@ -301,5 +323,5 @@ if __name__ == "__main__":
     print(f"Accuracy on validation data \n {classification_report(y_valid,y_predictions, target_names = CATEGORIES)}")
 
     if args.importance:
-        print(parameter_importance(model, CUSTOM_EXTRA_DIM_NAMES,
-                                   X_test, y_test, args.with_colors))
+        for val, name in parameter_importance(model, CUSTOM_EXTRA_DIM_NAMES, X_test, y_test, args.with_colors):
+            print(f"{name:20} {val:10.5f}")

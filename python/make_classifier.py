@@ -39,6 +39,7 @@
     "model_name": "barnag_modell.pickle"
 }
 """
+import time
 import sys
 import os.path
 import glob
@@ -217,6 +218,7 @@ def parameter_importance(model, custom_extra_dim_names, X_test, y_test,
     return res
 
 if __name__ == "__main__":
+    start = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='config file')
@@ -287,11 +289,13 @@ if __name__ == "__main__":
         callbacks.append(EarlyStopping(monitor='loss', patience=EARLY_STOP))
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1]-3,)))   # xyz not used (-3)
+    #model.add(Dense(256, activation='relu'))
+    #model.add(Dropout(0.2))
     model.add(Dense(128, activation='relu'))
     model.add(Dropout(0.2))
     model.add(Dense(64, activation='relu'))
     #model.add(Dropout(0.15))
-    #model.add(Dense(16, activation='relu'))
+    model.add(Dense(16, activation='relu'))
     model.add(Dense(num_classes, activation='softmax'))
     model.compile(optimizer=AdamW(weight_decay=WEIGHT_DECAY),
                   loss='sparse_categorical_crossentropy',
@@ -325,3 +329,4 @@ if __name__ == "__main__":
     if args.importance:
         for val, name in parameter_importance(model, CUSTOM_EXTRA_DIM_NAMES, X_test, y_test, args.with_colors):
             print(f"{name:20} {val:10.5f}")
+    print(f"execution time {time.time() - start} seconds")

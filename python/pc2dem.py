@@ -21,17 +21,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                     help='point cloud to process')
 parser.add_argument('-r', '--resolution', type=float, default=2.0,
-                    help='resolution for dem')
+                    help='resolution for dem, default: 2')
 parser.add_argument('-o', '--output', type=str, default='output',
                     help='output base name for DEM file and non-ground points')
 parser.add_argument('--rigidness', type=int, default=3,
-                    help='rigidness of cloth 1,2,3: mountain with desen vegetation(1) OR complex scenes(2) OR flat terrain with high-rise buildings(3)')
+                    help='rigidness of cloth 1,2,3: mountain with desen vegetation(1) OR complex scenes(2) OR flat terrain with high-rise buildings(3), default: 3')
 parser.add_argument('--smooth', action='store_true',
                     help='postprocess to smooth')
 parser.add_argument('--iterations', type=int, default=500,
-                    help='number of iterations')
+                    help='number of iterations, default=500')
 parser.add_argument('--classification', type=int, default=0.5,
-                    help='classification threshold')
+                    help='classification threshold, default: 0.5')
 args = parser.parse_args()
 
 # load PC

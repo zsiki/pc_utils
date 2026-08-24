@@ -10,6 +10,7 @@
     classifier.py: categories, model_name, pc_name, custom_extra_dim_names
 
 """
+import time
 import pickle
 import json
 import os.path
@@ -19,6 +20,7 @@ import laspy
 from make_classifier import pc_features2np
 
 if __name__ == "__main__":
+    start = time.time()
     CHUNK_SIZE = 2_000_000
     parser = argparse.ArgumentParser()
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
@@ -44,11 +46,11 @@ if __name__ == "__main__":
 
     data = pickle.load(open(MODEL_NAME, 'rb'))   # load pre-trained model
     model = data["model"]
-    scaler = data["scaler"]
-    with_colors = data["with_colors"]
+    scaler = data.get("scaler", None)
+    with_colors = data.get("with_colors", False)
 
     lasf = laspy.open(PC_NAME, mode="r")
-    num_classes = model.output_shape[-1]
+    num_classes = len(CATEGORIES) # model.output_shape[-1]
     header = laspy.LasHeader(point_format=3, version="1.2")
     header.scales = np.array([0.001, 0.001, 0.001])   # millimeter precision
     # create and open output las files
@@ -61,10 +63,11 @@ if __name__ == "__main__":
     for pnts in lasf.chunk_iterator(args.chunk_size):
         pc2np = pc_features2np(pnts, CUSTOM_EXTRA_DIM_NAMES, with_colors) # convert to numpy array
         X_features = pc2np[:,3:pc2np.shape[1]]      # exclude coordinates
-        X_features = scaler.transform(X_features)   # scale data
-        #print("X_feature", X_features.shape)
+        if scaler is not None:
+            X_features = scaler.transform(X_features)   # scale data
         y_predict = model.predict(X_features)       # predict labels
-        y_predict = np.argmax(y_predict, axis=1)    # predict classes from model
+        if len(y_predict.shape) > 1:
+            y_predict = np.argmax(y_predict, axis=1)    # predict classes from MLP model
         # build output
         xyz = pc2np[:,0:3]                          # get coordinates
         colors = pc2np[:,3:6]                       # get colors
@@ -91,3 +94,4 @@ if __name__ == "__main__":
             outputs[class_n].write_points(out_points)
     for i in range(num_classes):
         outputs[i].close()
+    print(f"execution time {time.time() - start} seconds")

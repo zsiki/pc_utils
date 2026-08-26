@@ -31,6 +31,7 @@
     "model_name": "barnag_modell.pickle"
 }
 """
+import time
 import sys
 import pickle
 import json
@@ -42,6 +43,7 @@ from sklearn.ensemble import RandomForestClassifier
 from make_classifier import load_training_data
 
 if __name__ == "__main__":
+    start = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='config file')
@@ -98,10 +100,17 @@ if __name__ == "__main__":
     print(f"Score for test data {model.score(X_test[:,3:], y_test)}")
     if args.importance:
         imp = model.feature_importances_
-        res = sorted(zip(imp.tolist(), CUSTOM_EXTRA_DIM_NAMES), reverse=True)
+        if args.with_colors:
+            feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
+        else:
+            feature_names = CUSTOM_EXTRA_DIM_NAMES
+        if len(imp.tolist()) != len(feature_names):
+            print("*** ERROR in feature count in importance {len(imp.tolist())} vs. feature_names")
+        res = sorted(zip(imp.tolist(), feature_names), reverse=True)
         for i, name in res:
-            print(f"{name}: {i:.4f}")
+            print(f"{name:25}: {i:8.4f}")
     # save model
     data = { "model": model, "with_colors": args.with_colors}
     with open(MODEL_NAME, 'wb') as f:
         pickle.dump(data, f)
+    print(f"execution time {time.time() - start} seconds")

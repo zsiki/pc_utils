@@ -262,7 +262,7 @@ if __name__ == "__main__":
                                               args.with_colors)
     unique_labels, unique_label_counts = np.unique(y_labels, return_counts=True)
     for label, count, name in zip(unique_labels, unique_label_counts, CATEGORIES):
-        print(f'{label}/{name} címkéhez tartozó elemek száma: {count}')
+        print(f'{count:8} samples for label {label}/{name}')
     # scale features
     if args.scaler == 'standard':
         scaler = StandardScaler()

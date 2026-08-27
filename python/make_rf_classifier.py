@@ -68,17 +68,13 @@ if __name__ == "__main__":
     MODEL_NAME = conf["model_name"]
     # load training and test data
     X_features, y_labels = load_training_data(CATEGORIES, DATADIR,
-                                              CUSTOM_EXTRA_DIM_NAMES,
-                                              args.with_colors)
+                                              CUSTOM_EXTRA_DIM_NAMES)
     unique_labels, unique_label_counts = np.unique(y_labels, return_counts=True)
     for label, count, name in zip(unique_labels, unique_label_counts, CATEGORIES):
         print(f'{label}/{name} címkéhez tartozó elemek száma: {count}')
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(
          X_features, y_labels, test_size=0.3, shuffle=True)
-    # split test data to test and validation
-    #X_test, X_valid, y_test, y_valid = train_test_split(
-    #     X_test, y_test, test_size=0.33, shuffle=True)
 
     num_classes = len(CATEGORIES) # size of output layer
 
@@ -94,10 +90,14 @@ if __name__ == "__main__":
     )
 
     # train modell
-    model.fit(X_train[:,3:], y_train)
+    if args.with_colors:
+        ind = 3
+    else:
+        ind = 6
+    model.fit(X_train[:,ind:], y_train)
     print(model.get_params())
-    print(f"Score for train data {model.score(X_train[:,3:], y_train)}")
-    print(f"Score for test data {model.score(X_test[:,3:], y_test)}")
+    print(f"Score for train data {model.score(X_train[:,ind:], y_train)}")
+    print(f"Score for test data {model.score(X_test[:,ind:], y_test)}")
     if args.importance:
         imp = model.feature_importances_
         if args.with_colors:

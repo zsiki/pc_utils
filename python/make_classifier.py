@@ -77,7 +77,7 @@ def validate_extra_dim_names(custom_names, las_names):
     """
     return list(set(custom_names) - set(las_names))
 
-def pc_features2np(pnts, custom_extra_dim_names, with_colors=True):
+def pc_features2np(pnts, custom_extra_dim_names):
     """ Get scalar field data from point cloud
 
         :param pnts: laspy.point.record from loaded las file
@@ -94,32 +94,24 @@ def pc_features2np(pnts, custom_extra_dim_names, with_colors=True):
         else:
             pc_xyz_features = np.concatenate([pc_xyz_features, col], axis=1)
     # add XYZ and color data
-    #xyz = las.xyz.reshape((-1,3))
     xyz = np.column_stack((pnts.x, pnts.y, pnts.z))
-    if with_colors:
-        r = (pnts.red // 256).astype(np.uint8).reshape((-1,1))
-        g = (pnts.green // 256).astype(np.uint8).reshape((-1,1))
-        b = (pnts.blue // 256).astype(np.uint8).reshape((-1,1))
-        colors = np.concatenate([r, g, b], axis=1).reshape(-1,3)
+    r = (pnts.red // 256).astype(np.uint8).reshape((-1,1))
+    g = (pnts.green // 256).astype(np.uint8).reshape((-1,1))
+    b = (pnts.blue // 256).astype(np.uint8).reshape((-1,1))
+    colors = np.concatenate([r, g, b], axis=1).reshape(-1,3)
 
     # put data together
     if pc_xyz_features is None:
-        if with_colors:
-            pc_xyz_colors_features = np.concatenate([xyz, colors], axis=1)
-        else:
-            pc_xyz_colors_features = xyz
+        pc_xyz_colors_features = np.concatenate([xyz, colors], axis=1)
     else:
-        if with_colors:
-            pc_xyz_colors_features = np.concatenate([xyz, colors, pc_xyz_features], axis=1)
-        else:
-            pc_xyz_colors_features = np.concatenate([xyz, pc_xyz_features], axis=1)
+        pc_xyz_colors_features = np.concatenate([xyz, colors, pc_xyz_features], axis=1)
 
     # remove rows with NAN values
     pc_xyz_colors_features_filt = (pc_xyz_colors_features[~np.isnan(pc_xyz_colors_features).any(axis=1), :])
 
     return pc_xyz_colors_features_filt
 
-def load_training_data(categories, datadir, custom_names, with_colors):
+def load_training_data(categories, datadir, custom_names):
     """ load training data from categorised folders
 
         :param categories: category names, same as folder name with laballed data
@@ -144,10 +136,10 @@ def load_training_data(categories, datadir, custom_names, with_colors):
                 print(f"Missing scalars {missing_names} from {pc}")
                 sys.exit(1)
             if len(X_features) == 0:    # add first feature and label
-                X_features = pc_features2np(las.points, custom_names, with_colors)
+                X_features = pc_features2np(las.points, custom_names)
                 y_labels = np.full(X_features.shape[0], class_num)
             else:   # following features and labels
-                features = pc_features2np(las.points, custom_names, with_colors)
+                features = pc_features2np(las.points, custom_names)
                 labels = np.full(features.shape[0], class_num)
                 X_features = np.concatenate((X_features, features), axis=0)
                 y_labels = np.concatenate((y_labels, labels), axis=0)
@@ -198,14 +190,16 @@ def parameter_importance(model, custom_extra_dim_names, X_test, y_test,
     if with_colors:
         # add colors
         feature_names = ['Red', 'Green', 'Blue'] + custom_extra_dim_names
+        ind = 3
     else:
         feature_names = custom_extra_dim_names
+        ind = 6
     wrapper = KerasEstimator(model) # estimator from trained model
 
     # calculate importance of parameters on test data
     result = permutation_importance(
         wrapper, # the model
-        X_test[:, 3:],
+        X_test[:, ind:],
         y_test,
         n_repeats=10,
         #random_state=42,
@@ -258,8 +252,7 @@ if __name__ == "__main__":
         sys.exit(1)
     # load training and test data
     X_features, y_labels = load_training_data(CATEGORIES, DATADIR,
-                                              CUSTOM_EXTRA_DIM_NAMES,
-                                              args.with_colors)
+                                              CUSTOM_EXTRA_DIM_NAMES)
     unique_labels, unique_label_counts = np.unique(y_labels, return_counts=True)
     for label, count, name in zip(unique_labels, unique_label_counts, CATEGORIES):
         print(f'{count:8} samples for label {label}/{name}')
@@ -272,8 +265,12 @@ if __name__ == "__main__":
         scaler = RobustScaler()
     else:
         scaler = MinMaxScaler()
-    # skip coordinates in scaling
-    X_features_scaled = np.concatenate((X_features[:,0:3], scaler.fit_transform(X_features[:,3:X_features.shape[1]])), axis=1)
+    # skip coordinates and optionally colors in scaling
+    if args.with_colors:
+        ind = 6
+    else:
+        ind = 3
+    X_features_scaled = np.concatenate((X_features[:,0:ind], scaler.fit_transform(X_features[:,ind:X_features.shape[1]])), axis=1)
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(
          X_features_scaled, y_labels, test_size=0.3, shuffle=True)

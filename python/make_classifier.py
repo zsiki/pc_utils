@@ -267,9 +267,9 @@ if __name__ == "__main__":
         scaler = MinMaxScaler()
     # skip coordinates and optionally colors in scaling
     if args.with_colors:
-        ind = 6
-    else:
         ind = 3
+    else:
+        ind = 6
     X_features_scaled = np.concatenate((X_features[:,0:ind], scaler.fit_transform(X_features[:,ind:X_features.shape[1]])), axis=1)
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(

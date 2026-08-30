@@ -8,22 +8,7 @@ http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html?highlight=d
 https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
 
 usage: dbscan_clustering.py file_name -u 1 -e 0.15 -m 50 -f folder
-
-positional arguments:
-  pc_file_name          point cloud of the segmented points (.PLY)
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -u MODUL, --modul MODUL
-                        to use Open3D DBSCAN: 0, to use scikit-learn DBSCAN: 1, to use HDBSCAN: 2, default is 0
-  -e EPS, --eps EPS     maximum distance between two samples for one to be considered as in the neighborhood of the other
-  -m MIN_SAMPLES, --min_samples MIN_POINTS
-                        at Open3D method (0): number of samples (or total weight) in a neighborhood for a point to be considered as a core      
-                        point, at scikit-learn method (1): minimum number of points required to form a cluster
-  -f FOLDER, --folder FOLDER
-                        output folder
-  -d DEBUG, --debug DEBUG
-                        to switch debug mode (displaying the results) use: 1
+       dbscan_clustering.py --help
 '''
 
 import sys
@@ -50,8 +35,8 @@ parser.add_argument('-m', '--min_samples', type=int, default=100,
                     help='at Open3D method (0) and scikit-learn (1): number of samples (or total weight) in a neighborhood for a point to be considered as a core point,'\
                             'at HDBSCAN (2): ...,'\
                             'default: 100')                                                                             #TODO: new clustering
-parser.add_argument('-p', '--min_points', type=int, default=1000,
-                    help='minimum number of points in a cluster to save')
+parser.add_argument('-p', '--min_points', type=int, default=50000,
+                    help='minimum number of points in a cluster to save, default: 50000')
 parser.add_argument('-f', '--folder', type=str, default='clusters',
                     help='output folder')
 parser.add_argument('-d', '--debug', action='store_true',

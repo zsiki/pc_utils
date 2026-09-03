@@ -5,7 +5,6 @@ With the scaled polygon the wall points are cropped and segmented by buildings.
 '''
 # Not yet
 import os
-import random
 import glob
 import shutil
 import argparse
@@ -74,10 +73,10 @@ for cluster in clusters:
     pcd_cluster_convhull_xyz = pcd_cluster_xyz[pcd_cluster_convhull.vertices]
     # print(pcd_cluster_convhull_xyz[1,:])
 
-    # Check base area of the roofs
     if args.debug:
         print(f'cluster_{b_id} kerület: {pcd_cluster_convhull.area:.2f} terület: {pcd_cluster_convhull.volume:-2f}')
 
+    # Check base area of the roofs
     if pcd_cluster_convhull.volume >= args.area:
         # Scale it with Open3D                                                  TODO: scaling is not perfect along the building sides -> other solutions?
         pcd_cluster_convhull = o3d.geometry.PointCloud()
@@ -114,32 +113,21 @@ for cluster in clusters:
         # Crop the point cloud using the Vector3dVector
         pcd_cropped = cluster_volume.crop_point_cloud(pcd_walls)
 
-        pcd_cropped_walls = np.array(pcd_cropped.points)
         if args.walls_only:
-            pcd_cluster_stack = pcd_cropped_walls
+            pcd_cluster_stack = pcd_cropped
         else:
             # Append with the roof points
-            pcd_cluster_stack = np.concatenate((pcd_cropped_walls, pcd_cluster_xyz), axis=0)
+            pcd_cluster_stack = pcd_cropped + pcd_cluster
 
         # check for empty pc
-        if pcd_cluster_stack.shape[0] > 0:
-            # Create a point cloud with a random color
-            pcd_cropped_buildings = o3d.geometry.PointCloud()
-            pcd_cropped_buildings.points = o3d.utility.Vector3dVector(pcd_cluster_stack)
-
-            # Add a color to the point cloud
-            col_r = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
-            col_g = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
-            col_b = np.full((np.shape(pcd_cluster_stack)[0], 1), random.uniform(0, 1))
-            col = np.concatenate((col_r, col_g, col_b), axis=1)
-            pcd_cropped_buildings.colors = o3d.utility.Vector3dVector(col)
-
+        if len(pcd_cluster_stack.points) > 0:
             # Visualize it
             if args.debug:
-                o3d.visualization.draw_geometries([pcd_cropped_buildings])
+                #o3d.visualization.draw_geometries([pcd_cropped_buildings])
+                o3d.visualization.draw_geometries([pcd_cluster_stack])
 
             # Export point cloud
-            o3d.io.write_point_cloud(os.path.join(args.buildings_path, f'building_{b_id}.ply'), pcd_cropped_buildings)
+            o3d.io.write_point_cloud(os.path.join(args.buildings_path, f'building_{b_id}.ply'), pcd_cluster_stack)
 
         else:
             if args.debug:

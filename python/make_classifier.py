@@ -58,6 +58,39 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Input
 from keras.callbacks import EarlyStopping
 from keras.optimizers import AdamW
+from tensorflow import convert_to_tensor, GradientTape, float32
+
+def feature_importance(model, x, class_id):
+    """ get importance of input params for a class
+
+        :param model: the neural network model
+        :param x: imput to neural network
+        :param class_id: output class to examine
+    """
+    x = convert_to_tensor(x, dtype=float32)
+
+    with GradientTape() as tape:
+        tape.watch(x)
+        y = model(x, training=False)
+        score = y[:, class_id]
+
+    gradients = tape.gradient(score, x)
+    return gradients.numpy()
+
+def importance_matrix(model, x, num_classes):
+    """ get importance of input params for given classes
+
+        :param model: the neural network model
+        :param x: imput to neural network
+        :param class_ids: output classes to examine (list)
+    """
+    im = np.empty((x.shape[1], num_classes)) # create output matrix
+    for class_id in range(num_classes):
+        print(f"*** class_id: {class_id}")
+        importance = feature_importance(model, x, class_id)
+        mean_importance = np.mean(np.abs(importance), axis=0)
+        im[:,class_id] = mean_importance
+    return im
 
 def read_las_file_scalarfields(las):
     """ Get list of extra scalar fields
@@ -87,7 +120,6 @@ def pc_features2np(pnts, custom_extra_dim_names):
     pc_xyz_features = None
 
     for extra_dim in custom_extra_dim_names:
-        #indx = pc_dim_names.index(extra_dim)
         col = pnts[extra_dim].reshape(-1,1)  # single column
         if pc_xyz_features is None:
             pc_xyz_features = col
@@ -185,21 +217,14 @@ class KerasEstimator(BaseEstimator):
     def score(self, X, y):
         return np.mean(self.predict(X) == y)
 
-def parameter_importance(model, custom_extra_dim_names, X_test, y_test,
-                         with_colors=True):
-    if with_colors:
-        # add colors
-        feature_names = ['Red', 'Green', 'Blue'] + custom_extra_dim_names
-        ind = 3
-    else:
-        feature_names = custom_extra_dim_names
-        ind = 6
+def parameter_importance(model, feature_names, X_test, y_test):
+    """ Estimate parameter importance for all classes """
     wrapper = KerasEstimator(model) # estimator from trained model
 
     # calculate importance of parameters on test data
     result = permutation_importance(
         wrapper, # the model
-        X_test[:, ind:],
+        X_test,
         y_test,
         n_repeats=10,
         #random_state=42,
@@ -220,6 +245,8 @@ if __name__ == "__main__":
                         help='scaler for feature data, default: minmax')
     parser.add_argument('-i', '--importance', action="store_true",
                         help='show importance of parameters')
+    parser.add_argument('-m', '--importance_matrix', action="store_true",
+                        help='show importance matrix of parameters/classes')
     parser.add_argument('-a', '--accuracy', action="store_true",
                         help='draw accuracy and loss curve')
     parser.add_argument('-c', '--with_colors', action="store_true",
@@ -268,8 +295,10 @@ if __name__ == "__main__":
     # skip coordinates and optionally colors in scaling
     if args.with_colors:
         ind = 3
+        feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
     else:
         ind = 6
+        feature_names = CUSTOM_EXTRA_DIM_NAMES
     X_features_scaled = np.concatenate((X_features[:,0:ind], scaler.fit_transform(X_features[:,ind:X_features.shape[1]])), axis=1)
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(
@@ -324,6 +353,14 @@ if __name__ == "__main__":
     print(f"Accuracy on validation data \n {classification_report(y_valid,y_predictions, target_names = CATEGORIES)}")
 
     if args.importance:
-        for val, name in parameter_importance(model, CUSTOM_EXTRA_DIM_NAMES, X_test, y_test, args.with_colors):
+        for val, name in parameter_importance(model, feature_names, X_test[:, ind:], y_test):
             print(f"{name:20} {val:10.5f}")
+    if args.importance_matrix:
+        i_m = importance_matrix(model, X_train[:, ind:], len(CATEGORIES))
+        print(" "*20 + " ".join([ f"{name:^10s}" for name in CATEGORIES]))
+        for i, row in enumerate(i_m):
+            row_text = f"{feature_names[i]:20s}" + \
+                        " ".join([f"{val:10.3f}" for val in row])
+            print(row_text)
+
     print(f"execution time {time.time() - start} seconds")

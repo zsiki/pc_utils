@@ -82,11 +82,11 @@ if __name__ == "__main__":
         n_estimators=300,
         max_features="sqrt",
         max_depth=None,
-        min_samples_split=2,
+        min_samples_split=5, #2,
         min_samples_leaf=4,
         class_weight="balanced",
-        n_jobs=-1,
-        random_state=42
+        #random_state=42,
+        n_jobs=-1       # use all cores
     )
 
     # train modell

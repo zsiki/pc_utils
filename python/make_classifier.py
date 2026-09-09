@@ -60,22 +60,28 @@ from keras.callbacks import EarlyStopping
 from keras.optimizers import AdamW
 from tensorflow import convert_to_tensor, GradientTape, float32
 
-def feature_importance(model, x, class_id):
+def feature_importance(model, x, class_id, batch_size=4096):
     """ get importance of input params for a class
 
         :param model: the neural network model
         :param x: imput to neural network
         :param class_id: output class to examine
     """
-    x = convert_to_tensor(x, dtype=float32)
+    all_gradients = []
+    for start in range(0, len(x), batch_size):
+        end = min(start + batch_size, len(x))
+        x_batch = convert_to_tensor(x[start:end], dtype=float32)
+    
+        with GradientTape() as tape:
+            tape.watch(x_batch)
+            y = model(x_batch, training=False)
+            score = y[:, class_id]
 
-    with GradientTape() as tape:
-        tape.watch(x)
-        y = model(x, training=False)
-        score = y[:, class_id]
+        gradients = tape.gradient(score, x_batch)
+        all_gradients.append(gradients.numpy())
+        del x_batch, y, score, gradients
 
-    gradients = tape.gradient(score, x)
-    return gradients.numpy()
+    return np.concatenate(all_gradients, axis=0)
 
 def importance_matrix(model, x, num_classes):
     """ get importance of input params for given classes
@@ -86,7 +92,6 @@ def importance_matrix(model, x, num_classes):
     """
     im = np.empty((x.shape[1], num_classes)) # create output matrix
     for class_id in range(num_classes):
-        print(f"*** class_id: {class_id}")
         importance = feature_importance(model, x, class_id)
         mean_importance = np.mean(np.abs(importance), axis=0)
         im[:,class_id] = mean_importance
@@ -251,6 +256,8 @@ if __name__ == "__main__":
                         help='draw accuracy and loss curve')
     parser.add_argument('-c', '--with_colors', action="store_true",
                         help='add colors to features')
+    parser.add_argument('-l', '--large_net', action="store_true",
+                        help='Use large net 5 hidden layer')
     args = parser.parse_args()
     # read json config
     try:
@@ -315,11 +322,15 @@ if __name__ == "__main__":
         callbacks.append(EarlyStopping(monitor='loss', patience=EARLY_STOP))
     model = Sequential()
     model.add(Input(shape=(X_train.shape[1]-3,)))   # xyz not used (-3)
-    #model.add(Dense(256, activation='relu'))
-    #model.add(Dropout(0.2))
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.2))
+    if args.large_net:
+        model.add(Dense(256, activation='relu'))
+        model.add(Dropout(0.2))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.2))
+
     model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(32, activation='relu'))
     #model.add(Dropout(0.15))
     model.add(Dense(16, activation='relu'))
     model.add(Dense(num_classes, activation='softmax'))
@@ -357,9 +368,9 @@ if __name__ == "__main__":
             print(f"{name:20} {val:10.5f}")
     if args.importance_matrix:
         i_m = importance_matrix(model, X_train[:, ind:], len(CATEGORIES))
-        print(" "*20 + " ".join([ f"{name:^10s}" for name in CATEGORIES]))
+        print(" "*21 + " ".join([ f"{name:^10s}" for name in CATEGORIES]))
         for i, row in enumerate(i_m):
-            row_text = f"{feature_names[i]:20s}" + \
+            row_text = f"{feature_names[i]:21s}" + \
                         " ".join([f"{val:10.3f}" for val in row])
             print(row_text)
 

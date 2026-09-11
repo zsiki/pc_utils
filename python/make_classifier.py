@@ -190,18 +190,16 @@ def training_plot(model, epochs):
     loss = model.history.history['loss']
     val_loss = model.history.history['val_loss']
 
-    epochs_range = range(epochs)
-
     plt.figure(figsize=(15, 15))
     plt.subplot(2, 2, 1)
-    plt.plot(epochs_range, acc, label='Training Accuracy')
-    plt.plot(epochs_range, val_acc, label='Validation Accuracy')
+    plt.plot(range(len(acc)), acc, label='Training Accuracy')
+    plt.plot(range(len(val_acc)), val_acc, label='Validation Accuracy')
     plt.legend(loc='lower right')
     plt.title('Training and Validation Accuracy')
 
     plt.subplot(2, 2, 2)
-    plt.plot(epochs_range, loss, label='Training Loss')
-    plt.plot(epochs_range, val_loss, label='Validation Loss')
+    plt.plot(range(len(loss)), loss, label='Training Loss')
+    plt.plot(range(len(val_loss)), val_loss, label='Validation Loss')
     plt.legend(loc='upper right')
     plt.title('Training and Validation Loss')
     plt.show()
@@ -374,4 +372,4 @@ if __name__ == "__main__":
                         " ".join([f"{val:10.3f}" for val in row])
             print(row_text)
 
-    print(f"execution time {time.time() - start} seconds")
+    print(f"execution time {(time.time() - start):.1f} seconds")

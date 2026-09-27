@@ -17,6 +17,7 @@ import os.path
 import argparse
 import numpy as np
 import laspy
+import matplotlib.colors as mcolor
 from make_classifier import pc_features2np
 
 if __name__ == "__main__":
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--chunk_size', type=int, default=CHUNK_SIZE,
                         help=f'chunk size for processing large point cloud, default: {CHUNK_SIZE}')
     parser.add_argument('-l', '--limit', type=float, default=LIMIT,
-                        help='probability limit to accep point in class, only for neural networks, default: no limit')
+                        help='probability limit (0-1) to accep point in class, only for neural networks, default: no limit')
     parser.add_argument('-p', '--point_cloud', type=str, default=None,
                         help='point cloud to process overwrites pc_name from config, default: pc_name param from config')
     args = parser.parse_args()
@@ -51,6 +52,7 @@ if __name__ == "__main__":
     model = data["model"]
     scaler = data.get("scaler", None)
     with_colors = data.get("with_colors", False)
+    hsv_colors = data.get("hsv_colors", False)
 
     lasf = laspy.open(PC_NAME, mode="r")
     num_classes = len(CATEGORIES) # model.output_shape[-1]
@@ -65,33 +67,37 @@ if __name__ == "__main__":
         ind = 3
     else:
         ind = 6     # skip colors
+    # initialize total numbers
+    class_total = np.zeros(len(CATEGORIES), dtype=np.int64)
+    class_dropped = np.zeros(len(CATEGORIES), dtype=np.int64)
+    grand_total = 0
     # process las file in chunks
     for pnts in lasf.chunk_iterator(args.chunk_size):
         # save colors for output
         pc2np = pc_features2np(pnts, CUSTOM_EXTRA_DIM_NAMES) # convert to numpy array
+        grand_total += len(pc2np)
         X_features = pc2np[:,ind:pc2np.shape[1]]      # exclude coordinates
+        if with_colors and hsv_colors:
+            X_features[:,0:3] = mcolor.rgb_to_hsv(X_features[:,0:3] / 255.)
         if scaler is not None:
-            X_features = scaler.transform(X_features)   # scale data
-        y_predict = model.predict(X_features)       # predict labels
+            X_features = scaler.transform(X_features)  # scale data
+        y_predict = model.predict(X_features)          # predict labels
         y_val = None
         if len(y_predict.shape) > 1:
-            y_val = np.max(y_predict, axis=1)           # preserve probability
-            y_predict = np.argmax(y_predict, axis=1)    # predict classes from MLP model
+            y_val = np.max(y_predict, axis=1)          # preserve probability
+            y_predict = np.argmax(y_predict, axis=1)   # predict classes from MLP model
         # build output
-        xyz = pc2np[:,0:3]                          # get coordinates
-        colors = pc2np[:,3:6]                        # get colors
-        classes = np.unique(y_predict)              # different class labels (int)
-        # point count per class
-        unique_labels, unique_label_counts = np.unique(y_predict, return_counts=True)
-        for label, count in zip(unique_labels, unique_label_counts):
-            print(f'Points in {label} class ({CATEGORIES[label]}): {count}')
-
+        xyz = pc2np[:,0:3]                             # get coordinates
+        colors = pc2np[:,3:6]                          # get colors
+        classes = np.unique(y_predict)                 # different class labels (int)
         for class_n in classes:
+            row_ix = np.where(y_predict == class_n)
+            all_items = len(row_ix[0])
             if args.limit is not None and y_val is not None:
                 row_ix = np.where((y_predict == class_n) & (y_val >= args.limit))
-            else:
-                row_ix = np.where(y_predict == class_n)
             xyz_class = xyz[row_ix[0],:]        # select class points
+            class_total[class_n] += len(xyz_class)
+            class_dropped[class_n] += all_items - len(xyz_class)
             colors_class = colors[row_ix[0],:]
             out_points = laspy.ScaleAwarePointRecord.zeros(len(xyz_class),
                 header=header)
@@ -104,4 +110,14 @@ if __name__ == "__main__":
             outputs[class_n].write_points(out_points)
     for i in range(num_classes):
         outputs[i].close()
-    print(f"execution time {time.time() - start} seconds")
+    # point count per class
+    total1 = 0
+    print("Class ID/Name              Kept    Dropped Kept% Dropeed %")
+    for class_n in range(num_classes):
+        total1 += class_total[class_n]
+        ct = class_total[class_n]
+        cd = class_dropped[class_n]
+        cs = ct + cd
+        print(f"{class_n:3d}/{CATEGORIES[class_n]:15s}: {ct:10d} {cd:10d} {(ct/cs*100):5.1f} {(cd/cs*100):5.1f}")
+    print(f"    Sum            : {total1:10d} {(grand_total - total1):10d} {(total1 / grand_total*100):5.1f} {(grand_total - total1)/grand_total*100:5.1f}")
+    print(f"execution time {(time.time() - start):.1f} seconds")

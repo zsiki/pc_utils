@@ -49,6 +49,7 @@ import argparse
 import numpy as np
 import laspy
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.inspection import permutation_importance
@@ -71,7 +72,7 @@ def feature_importance(model, x, class_id, batch_size=4096):
     for start in range(0, len(x), batch_size):
         end = min(start + batch_size, len(x))
         x_batch = convert_to_tensor(x[start:end], dtype=float32)
-    
+
         with GradientTape() as tape:
             tape.watch(x_batch)
             y = model(x_batch, training=False)
@@ -254,6 +255,8 @@ if __name__ == "__main__":
                         help='draw accuracy and loss curve')
     parser.add_argument('-c', '--with_colors', action="store_true",
                         help='add colors to features')
+    parser.add_argument('-v', '--hsv_colors', action="store_true",
+                        help=' convert colors to HSV, use together --with_colors')
     parser.add_argument('-l', '--large_net', action="store_true",
                         help='Use large net 5 hidden layer')
     args = parser.parse_args()
@@ -300,7 +303,11 @@ if __name__ == "__main__":
     # skip coordinates and optionally colors in scaling
     if args.with_colors:
         ind = 3
-        feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
+        if args.hsv_colors:
+            feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
+            X_features[:,ind:ind+3] = mcolor.rgb_to_hsv(X_features[:,ind:ind+3] / 255.)
+        else:
+            feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
     else:
         ind = 6
         feature_names = CUSTOM_EXTRA_DIM_NAMES
@@ -342,7 +349,9 @@ if __name__ == "__main__":
               validation_data=(X_valid[:, 3:], y_valid), verbose=2)
     print(model.summary())
     # save model, scaler & with_colors
-    data = { "model": model, "scaler": scaler, "with_colors": args.with_colors}
+    data = {"model": model, "scaler": scaler,
+            "with_colors": args.with_colors,
+            "hsv:colors": args.hsv_colors}
     with open(MODEL_NAME, 'wb') as f:
         pickle.dump(data, f)
 

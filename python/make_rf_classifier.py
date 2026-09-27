@@ -37,6 +37,7 @@ import pickle
 import json
 import argparse
 import numpy as np
+import matplotlib.colors as mcolor
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 
@@ -49,6 +50,8 @@ if __name__ == "__main__":
                         help='config file')
     parser.add_argument('-c', '--with_colors', action="store_true",
                         help='add colors to features')
+    parser.add_argument('-v', '--hsv_colors', action="store_true",
+                        help=' convert colors to HSV, use together --with_colors')
     parser.add_argument('-i', '--importance', action="store_true",
                         help='show importance of parameters')
     args = parser.parse_args()
@@ -92,16 +95,30 @@ if __name__ == "__main__":
     # train modell
     if args.with_colors:
         ind = 3
+        if args.hsv_colors:
+            feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
+            X_features[:,ind:ind+3] = mcolor.rgb_to_hsv(X_features[:,ind:ind+3] / 255.)
     else:
         ind = 6
     model.fit(X_train[:,ind:], y_train)
     print(model.get_params())
     print(f"Score for train data {model.score(X_train[:,ind:], y_train)}")
     print(f"Score for test data {model.score(X_test[:,ind:], y_test)}")
+    tree_depths = [tree.get_depth() for tree in model.estimators_]
+    max_depth_reached = max(tree_depths)
+    min_depth_reached = min(tree_depths)
+    avg_depth = sum(tree_depths) / len(tree_depths)
+
+    print(f"Maximum depth among all trees: {max_depth_reached}")
+    print(f"Minimum depth among all trees: {min_depth_reached}")
+    print(f"Average tree depth: {avg_depth:.2f}")
+
     if args.importance:
         imp = model.feature_importances_
         if args.with_colors:
             feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
+        elif args.hsv_colors:
+            feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
         else:
             feature_names = CUSTOM_EXTRA_DIM_NAMES
         if len(imp.tolist()) != len(feature_names):
@@ -110,7 +127,9 @@ if __name__ == "__main__":
         for i, name in res:
             print(f"{name:25}: {i:8.4f}")
     # save model
-    data = { "model": model, "with_colors": args.with_colors}
+    data = {"model": model,
+            "with_colors": args.with_colors,
+            "hsv:colors": args.hsv_colors}
     with open(MODEL_NAME, 'wb') as f:
         pickle.dump(data, f)
     print(f"execution time {time.time() - start} seconds")

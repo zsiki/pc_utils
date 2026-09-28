@@ -326,7 +326,7 @@ if __name__ == "__main__":
     if EARLY_STOP > 0:
         callbacks.append(EarlyStopping(monitor='loss', patience=EARLY_STOP))
     model = Sequential()
-    model.add(Input(shape=(X_train.shape[1]-3,)))   # xyz not used (-3)
+    model.add(Input(shape=(X_train.shape[1]-ind,)))   # xyz and/or rgb not used (-3/-6)
     if args.large_net:
         model.add(Dense(256, activation='relu'))
         model.add(Dropout(0.2))
@@ -344,9 +344,9 @@ if __name__ == "__main__":
                   metrics=['accuracy'])
 
     # train modell
-    model.fit(X_train[:, 3:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
+    model.fit(X_train[:, ind:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
               callbacks = callbacks,
-              validation_data=(X_valid[:, 3:], y_valid), verbose=2)
+              validation_data=(X_valid[:, ind:], y_valid), verbose=2)
     print(model.summary())
     # save model, scaler & with_colors
     data = {"model": model, "scaler": scaler,
@@ -359,13 +359,13 @@ if __name__ == "__main__":
         # show training and loss tendencies
         training_plot(model, EPOCHS)
     # accuracy on test data
-    y_predictions = model.predict(X_test[:,3:X_test.shape[1]])
+    y_predictions = model.predict(X_test[:,ind:X_test.shape[1]])
     y_predictions = np.argmax(y_predictions, axis=1)
     print(f'Model accuracy on test data: {accuracy_score(y_test, y_predictions):.4f}')
     print("Accuracy on test data \n",
           classification_report(y_test,y_predictions, target_names = CATEGORIES))
     # accuracy on valditation data
-    y_predictions = model.predict(X_valid[:,3:X_valid.shape[1]])
+    y_predictions = model.predict(X_valid[:,ind:X_valid.shape[1]])
     y_predictions = np.argmax(y_predictions, axis=1)
     print(f'Model accuracy on validation data: {accuracy_score(y_valid, y_predictions):.4f}')
     print(f"Accuracy on validation data \n {classification_report(y_valid,y_predictions, target_names = CATEGORIES)}")

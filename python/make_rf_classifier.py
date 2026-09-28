@@ -98,6 +98,8 @@ if __name__ == "__main__":
         if args.hsv_colors:
             feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
             X_features[:,ind:ind+3] = mcolor.rgb_to_hsv(X_features[:,ind:ind+3] / 255.)
+        else:
+            feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
     else:
         ind = 6
     model.fit(X_train[:,ind:], y_train)
@@ -116,9 +118,10 @@ if __name__ == "__main__":
     if args.importance:
         imp = model.feature_importances_
         if args.with_colors:
-            feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
-        elif args.hsv_colors:
-            feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
+            if args.hsv_colors:
+                feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
+            else:
+                feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
         else:
             feature_names = CUSTOM_EXTRA_DIM_NAMES
         if len(imp.tolist()) != len(feature_names):

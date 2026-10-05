@@ -183,7 +183,7 @@ def load_training_data(categories, datadir, custom_names):
                 y_labels = np.concatenate((y_labels, labels), axis=0)
     return X_features, y_labels
 
-def training_plot(model, epochs):
+def training_plot(model):
     """ plot training accuracy and loss curves
     """
     acc = model.history.history['accuracy']
@@ -208,18 +208,22 @@ def training_plot(model, epochs):
 class KerasEstimator(BaseEstimator):
     """ Keras - scikit-learn compability
     """
-    def __init__(self, model):
-        self.model = model
+    def __init__(self, my_model):
+        self.model = my_model
 
     def fit(self, X, y=None):
+        """
+        """
         return self
 
-    def predict(self, X):
-        preds = self.model.predict(X)
+    def predict(self, my_X):
+        """
+        """
+        preds = self.model.predict(my_X)
         return np.argmax(preds, axis=1)
 
-    def score(self, X, y):
-        return np.mean(self.predict(X) == y)
+    def score(self, my_X, my_y):
+        return np.mean(self.predict(my_X) == my_y)
 
 def parameter_importance(model, feature_names, X_test, y_test):
     """ Estimate parameter importance for all classes """
@@ -245,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('name', metavar='file_name', type=str, nargs=1,
                         help='config file')
-    parser.add_argument('-s', '--scaler', choices=['standard', 'minmax', 'robust'], default='standard',
+    parser.add_argument('-s', '--scaler', choices=['standard', 'minmax', 'robust', 'none'], default='minmax',
                         help='scaler for feature data, default: minmax')
     parser.add_argument('-i', '--importance', action="store_true",
                         help='show importance of parameters')
@@ -280,7 +284,7 @@ if __name__ == "__main__":
     MODEL_NAME = conf["model_name"]
     # check output name
     try:
-        with open(MODEL_NAME, "w") as f:
+        with open(MODEL_NAME, "wb") as f:
             pass
     except FileNotFoundError as e:
         print(f"File creation error: {MODEL_NAME}, {e}")
@@ -293,25 +297,30 @@ if __name__ == "__main__":
         print(f'{count:8} samples for label {label}/{name}')
     # scale features
     if args.scaler == 'standard':
-        scaler = StandardScaler()
+        SCALER = StandardScaler()
     if args.scaler == 'minmax':
-        scaler = MinMaxScaler()
+        SCALER = MinMaxScaler()
     elif args.scaler == 'robust':
-        scaler = RobustScaler()
+        SCALER = RobustScaler()
+    elif args.scaler == 'minmax':
+        SCALER = MinMaxScaler()
     else:
-        scaler = MinMaxScaler()
+        SCALER = None
     # skip coordinates and optionally colors in scaling
     if args.with_colors:
-        ind = 3
+        IND = 3
         if args.hsv_colors:
             feature_names = ['Hue', 'Saturation', 'Value'] + CUSTOM_EXTRA_DIM_NAMES
-            X_features[:,ind:ind+3] = mcolor.rgb_to_hsv(X_features[:,ind:ind+3] / 255.)
+            X_features[:,IND:IND+3] = mcolor.rgb_to_hsv(X_features[:,IND:IND+3] / 255.)
         else:
             feature_names = ['Red', 'Green', 'Blue'] + CUSTOM_EXTRA_DIM_NAMES
     else:
-        ind = 6
+        IND = 6
         feature_names = CUSTOM_EXTRA_DIM_NAMES
-    X_features_scaled = np.concatenate((X_features[:,0:ind], scaler.fit_transform(X_features[:,ind:X_features.shape[1]])), axis=1)
+    if SCALER is not None:
+        X_features_scaled = np.concatenate((X_features[:,0:IND], SCALER.fit_transform(X_features[:,IND:X_features.shape[1]])), axis=1)
+    else:
+        X_features_scaled = X_features  # no scaling
     # split data to train and test set
     X_train, X_test, y_train, y_test = train_test_split(
          X_features_scaled, y_labels, test_size=0.3, shuffle=True)
@@ -326,12 +335,17 @@ if __name__ == "__main__":
     if EARLY_STOP > 0:
         callbacks.append(EarlyStopping(monitor='loss', patience=EARLY_STOP))
     model = Sequential()
-    model.add(Input(shape=(X_train.shape[1]-ind,)))   # xyz and/or rgb not used (-3/-6)
+    model.add(Input(shape=(X_train.shape[1]-IND,)))   # xyz and/or rgb not used (-3/-6)
     if args.large_net:
-        model.add(Dense(256, activation='relu'))
+        model.add(Dense(1024, activation='relu'))
         model.add(Dropout(0.2))
-        model.add(Dense(128, activation='relu'))
+        model.add(Dense(512, activation='relu'))
         model.add(Dropout(0.2))
+
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(0.2))
 
     model.add(Dense(64, activation='relu'))
     model.add(Dropout(0.2))
@@ -344,12 +358,12 @@ if __name__ == "__main__":
                   metrics=['accuracy'])
 
     # train modell
-    model.fit(X_train[:, ind:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
+    model.fit(X_train[:, IND:], y_train, batch_size=BATCH_SIZE, epochs=EPOCHS,
               callbacks = callbacks,
-              validation_data=(X_valid[:, ind:], y_valid), verbose=2)
+              validation_data=(X_valid[:, IND:], y_valid), verbose=2)
     print(model.summary())
     # save model, scaler & with_colors
-    data = {"model": model, "scaler": scaler,
+    data = {"model": model, "scaler": SCALER,
             "with_colors": args.with_colors,
             "hsv:colors": args.hsv_colors}
     with open(MODEL_NAME, 'wb') as f:
@@ -357,24 +371,24 @@ if __name__ == "__main__":
 
     if args.accuracy:
         # show training and loss tendencies
-        training_plot(model, EPOCHS)
+        training_plot(model)
     # accuracy on test data
-    y_predictions = model.predict(X_test[:,ind:X_test.shape[1]])
+    y_predictions = model.predict(X_test[:,IND:X_test.shape[1]])
     y_predictions = np.argmax(y_predictions, axis=1)
     print(f'Model accuracy on test data: {accuracy_score(y_test, y_predictions):.4f}')
     print("Accuracy on test data \n",
           classification_report(y_test,y_predictions, target_names = CATEGORIES))
     # accuracy on valditation data
-    y_predictions = model.predict(X_valid[:,ind:X_valid.shape[1]])
+    y_predictions = model.predict(X_valid[:,IND:X_valid.shape[1]])
     y_predictions = np.argmax(y_predictions, axis=1)
     print(f'Model accuracy on validation data: {accuracy_score(y_valid, y_predictions):.4f}')
     print(f"Accuracy on validation data \n {classification_report(y_valid,y_predictions, target_names = CATEGORIES)}")
 
     if args.importance:
-        for val, name in parameter_importance(model, feature_names, X_test[:, ind:], y_test):
-            print(f"{name:20} {val:10.5f}")
+        for val, name in parameter_importance(model, feature_names, X_test[:, IND:], y_test):
+            print(f"{name:22} {val:6.3f}")
     if args.importance_matrix:
-        i_m = importance_matrix(model, X_train[:, ind:], len(CATEGORIES))
+        i_m = importance_matrix(model, X_train[:, IND:], len(CATEGORIES))
         print(" "*21 + " ".join([ f"{name:^10s}" for name in CATEGORIES]))
         for i, row in enumerate(i_m):
             row_text = f"{feature_names[i]:21s}" + \

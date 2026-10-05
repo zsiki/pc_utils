@@ -118,6 +118,9 @@ if __name__ == "__main__":
         ct = class_total[class_n]
         cd = class_dropped[class_n]
         cs = ct + cd
-        print(f"{class_n:3d}/{CATEGORIES[class_n]:15s}: {ct:10d} {cd:10d} {(ct/cs*100):5.1f} {(cd/cs*100):5.1f}")
+        if cs > 0:
+            print(f"{class_n:3d}/{CATEGORIES[class_n]:15s}: {ct:10d} {cd:10d} {(ct/cs*100):5.1f} {(cd/cs*100):5.1f}")
+        else:
+            print(f"{class_n:3d}/{CATEGORIES[class_n]:15s}: {ct:10d} {cd:10d}")
     print(f"    Sum            : {total1:10d} {(grand_total - total1):10d} {(total1 / grand_total*100):5.1f} {(grand_total - total1)/grand_total*100:5.1f}")
     print(f"execution time {(time.time() - start):.1f} seconds")
